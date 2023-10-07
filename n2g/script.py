@@ -10,6 +10,7 @@ import os
 import random
 import time
 import sys
+import traceback
 
 import numpy as np
 import seaborn as sns
@@ -2518,7 +2519,7 @@ def run_training(
                         json.dump(all_stats, ofh, indent=2)
 
             except Exception as e:
-                print(e)
+                print(traceback.format_exc())
                 print("Failed")
 
     neuron_store.save()
