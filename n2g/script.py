@@ -5,10 +5,11 @@ import copy
 from string import punctuation
 from collections import defaultdict, namedtuple, Counter
 import json
-from typing import List
+from typing import List, Tuple
 import os
 import random
 import time
+import sys
 
 import numpy as np
 import seaborn as sns
@@ -2525,6 +2526,28 @@ def run_training(
         json.dump(all_stats, ofh, indent=2)
 
 
+def cmd_arguments() -> Tuple[str, str, List[int], int]:
+    """
+    Gets model name, layer ending, layers, and neurons from the command line arguments if available.
+    Layer ending should be either "mid" for SoLU models or "post" for GeLU models.
+    The "mlp.hook_" prefix is added automatically.
+    Layers are given either as `start:end` or as a comma separated list of layer indices.
+    """
+    args = sys.argv[1:]
+    num_arguments = len(args)
+    model_name = args[0] if num_arguments >= 1 else "gpt2-small"
+    layer_ending = f"mlp.hook_{args[1]}" if num_arguments >= 2 else "mlp.hook_post"
+    layers_arg = args[2] if num_arguments >= 3 else "0"
+    if ":" in layers_arg:
+        layer_range = layers_arg.split(":")
+        layers = range(int(layer_range[0]), int(layer_range[1]))
+    else:
+        layers = [int(layer_index_str) for layer_index_str in layers_arg.split(",")]
+    neurons_per_layer = int(args[3]) if num_arguments >= 4 else "3072"
+
+    return model_name, layer_ending, layers, neurons_per_layer
+
+
 if __name__ == "__main__":
     """
     Instructions:
@@ -2540,9 +2563,14 @@ if __name__ == "__main__":
     And it will save the neuron store in neuron_graphs/model_name/neuron_store.json
     """
 
-    # Set these as desired
-    model_name = "gpt2-small"
-    layer_ending = "mlp.hook_post"
+    model_name, layer_ending, layers, neurons_per_layer = cmd_arguments()
+    # Uncomment and overwrite if you would rather specify the model name and layer ending here.
+    # model_name = "gpt2-small"
+    # layer_ending = "mlp.hook_post"
+
+    print(
+        f"Running N2G for model {model_name} layers {layers}. Using layer ending {layer_ending} and {neurons_per_layer} neurons per layer."
+    )
 
     # ================ Setup ================
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
@@ -2554,13 +2582,19 @@ if __name__ == "__main__":
     )
 
     # Save the activation matrix for the model to data/
-    with open(
-        os.path.join(base_path, f"data/activation_matrix-{model_name}.json")
-    ) as ifh:
+    activation_matrix_path = os.path.join(
+        base_path, f"data/activation_matrix-{model_name}.json"
+    )
+    if not os.path.exists(activation_matrix_path):
+        raise Exception(
+            f"Activation matrix not found for model {model_name}. Either download it from the repo or scrape it with `scrape.py`."
+        )
+    with open(activation_matrix_path) as ifh:
         activation_matrix = json.load(ifh)
         activation_matrix = np.array(activation_matrix)
 
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    print(f"Device: {device}")
     aug_model_checkpoint = "distilbert-base-uncased"
     aug_model = AutoModelForMaskedLM.from_pretrained(aug_model_checkpoint).to(device)
     aug_tokenizer = AutoTokenizer.from_pretrained(aug_model_checkpoint)
@@ -2587,9 +2621,9 @@ if __name__ == "__main__":
 
     run_training(
         # List of layers to run for
-        layers=[0],
+        layers=layers,
         # Number of neurons in each layer
-        neurons=3072,
+        neurons=neurons_per_layer,
         # Neuron to start at (useful for resuming - None to start at 0)
         start_neuron=None,
         # Folder to save results in
