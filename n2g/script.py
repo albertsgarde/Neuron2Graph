@@ -1,20 +1,38 @@
-# Import stuff
+from pprint import pprint
+import re
+import math
+import copy
+from string import punctuation
+from collections import defaultdict, namedtuple, Counter
+import json
+from typing import List
+import os
+import random
+import time
+
+import numpy as np
+import seaborn as sns
+import pandas as pd
+import matplotlib.pyplot as plt
+
+import requests
+
 import torch
-
-from pathlib import Path
-
-from transformer_lens import HookedTransformer, HookedTransformerConfig
+from transformers import AutoModelForMaskedLM
+from transformers import AutoTokenizer
+from transformer_lens import HookedTransformer
 
 import nltk
 
 nltk.download("stopwords")
+from nltk.corpus import stopwords
 
-from transformers import AutoModelForCausalLM
-from transformers import AutoModelForMaskedLM
-from transformers import AutoTokenizer
+from scipy.special import softmax
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import classification_report
 
-import requests
-import re
+from graphviz import Digraph, escape
+from IPython.display import Image, display
 
 parser = re.compile('\{"tokens": ')
 
@@ -108,8 +126,6 @@ def layer_index_to_name(layer_index):
     return f"blocks.{layer_index}.{layer_ending}"
 
 
-from pprint import pprint
-
 splitter = re.compile("[\.!\\n]")
 
 
@@ -129,9 +145,6 @@ def sentence_tokenizer(str_tokens):
             sentence = []
 
     return sentences, sentence_to_token_indices, token_to_sentence_indices
-
-
-import math
 
 
 def batch(arr, n=None, batch_size=None):
@@ -164,11 +177,6 @@ def batch(arr, n=None, batch_size=None):
         groups.append(group)
 
     return groups
-
-
-from nltk.corpus import stopwords
-from string import punctuation
-from scipy.special import softmax
 
 
 class FastAugmenter:
@@ -617,9 +625,6 @@ def fast_prune(
     return list(zip(pruned_sentences, final_max_indices))
 
 
-import copy
-
-
 def fast_measure_importance(
     model,
     layer,
@@ -755,11 +760,6 @@ def fast_measure_importance(
     )
 
 
-import seaborn as sns
-import pandas as pd
-import matplotlib.pyplot as plt
-
-
 def visualise(
     tokens_and_activations,
     tokens_and_importances,
@@ -804,9 +804,6 @@ def visualise(
     if title is not None:
         title = title.replace("$", "\$")
         plt.title(title)
-
-
-from sklearn.model_selection import train_test_split
 
 
 def train_and_eval(
@@ -1179,9 +1176,6 @@ def index_to_layer_and_neuron(index, width=3072):
     return divmod(index, width)
 
 
-from sklearn.metrics import classification_report
-
-
 def evaluate(neuron_model, data, fire_threshold=0.5, **kwargs):
     y = []
     y_pred = []
@@ -1456,14 +1450,6 @@ def get_summary_stats(path, verbose=True):
         print(f"{precision_case=}")
 
     return summary_stats
-
-
-from collections import defaultdict, namedtuple, Counter
-import json
-from graphviz import Digraph, escape
-from typing import List
-import os
-from IPython.display import Image, display
 
 
 class NeuronStore:
@@ -2376,9 +2362,6 @@ class TokenPredictor:
         return all_firings
 
 
-import numpy as np
-
-
 class NGramBaseline:
     def __init__(self, model, layer, neuron, prior_context=1, activation_threshold=0.5):
         self.model = model
@@ -2448,10 +2431,6 @@ class NGramBaseline:
         if return_activations:
             return all_activations
         return all_firings
-
-
-import random
-import time
 
 
 def run_training(
