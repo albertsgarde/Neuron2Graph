@@ -1,4 +1,6 @@
 import re
+import sys
+from typing import List, Tuple
 import requests
 import json
 import os
@@ -7,7 +9,7 @@ import numpy as np
 
 from functools import partial
 
-act_parser = re.compile('<h4>Max Act: <b>')
+act_parser = re.compile("<h4>Max Act: <b>")
 
 
 def get_max_activations(model_name, layer, neuron, n=1):
@@ -23,7 +25,7 @@ def get_max_activations(model_name, layer, neuron, n=1):
         if i == 0:
             continue
 
-        activation = float(part.split('</b>')[0])
+        activation = float(part.split("</b>")[0])
 
         activations.append(activation)
         if len(activations) >= n:
@@ -50,17 +52,34 @@ def get_max_acts(model_name, layer_and_neurons):
     return activations
 
 
+def cmd_arguments() -> Tuple[str, int, int]:
+    """
+    Gets model name, number of layers and neurons per layer from cmd arguments if available.
+    """
+    args = sys.argv[1:]
+    num_arguments = len(args)
+    model_name = args[0] if num_arguments >= 1 else "gpt2-small"
+    num_layers = int(args[1]) if num_arguments >= 2 else 24
+    neurons_per_layer = int(args[2]) if num_arguments >= 3 else 4096
+
+    return model_name, num_layers, neurons_per_layer
+
+
 if __name__ == "__main__":
     """
     Instructions:
     Look at https://neuroscope.io/ for the model you want to scrape
     Set the number of layers and neurons appropriately
     """
-    base_path = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__))))
+    base_path = os.path.abspath(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)))
+    )
 
-    model_name = "gpt2-small"
-    layers = 24
-    neurons = 4096
+    model_name, layers, neurons = cmd_arguments()
+    # Uncomment and overwrite if you would rather specify the configuration here.
+    # model_name = "gpt2-small"
+    # layers = 24
+    # neurons = 4096
 
     info = [(layer, [neuron for neuron in range(neurons)]) for layer in range(layers)]
 
@@ -69,5 +88,7 @@ if __name__ == "__main__":
 
     activation_matrix_np = np.array(activation_matrix)
 
-    with open(os.path.join(base_path, f"data/activation_matrix-{model_name}.json"), "w") as ofh:
+    with open(
+        os.path.join(base_path, f"data/activation_matrix-{model_name}.json"), "w"
+    ) as ofh:
         json.dump(activation_matrix, ofh, indent=2, ensure_ascii=False)
