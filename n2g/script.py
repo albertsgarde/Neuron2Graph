@@ -7,7 +7,7 @@ from transformer_lens import HookedTransformer, HookedTransformerConfig
 
 import nltk
 
-nltk.download('stopwords')
+nltk.download("stopwords")
 
 from transformers import AutoModelForCausalLM
 from transformers import AutoModelForMaskedLM
@@ -16,7 +16,7 @@ from transformers import AutoTokenizer
 import requests
 import re
 
-parser = re.compile('\{\"tokens\": ')
+parser = re.compile('\{"tokens": ')
 
 
 def get_snippets(model_name, layer, neuron):
@@ -45,7 +45,7 @@ def get_snippets(model_name, layer, neuron):
     return snippets
 
 
-act_parser = re.compile('<h4>Max Act: <b>')
+act_parser = re.compile("<h4>Max Act: <b>")
 
 
 def get_max_activations(model_name, layer, neuron, n=1):
@@ -61,7 +61,7 @@ def get_max_activations(model_name, layer, neuron, n=1):
         if i == 0:
             continue
 
-        activation = float(part.split('</b>')[0])
+        activation = float(part.split("</b>")[0])
 
         activations.append(activation)
         if len(activations) >= n:
@@ -84,7 +84,9 @@ class WordTokenizer:
 
     def is_split(self, char):
         """Split on any non-alphabet chars unless excluded, and split on any specified chars"""
-        return char in self.split_tokens or (not char.isalpha() and char not in self.stick_tokens)
+        return char in self.split_tokens or (
+            not char.isalpha() and char not in self.stick_tokens
+        )
 
     def tokenize(self, text):
         """Tokenize text, preserving all characters"""
@@ -172,23 +174,35 @@ from scipy.special import softmax
 class FastAugmenter:
     """Uses BERT to generate variations on input text by masking words and substituting with most likely predictions"""
 
-    def __init__(self, model, model_tokenizer, word_tokenizer, neuron_model, device="cuda:0"):
+    def __init__(
+        self, model, model_tokenizer, word_tokenizer, neuron_model, device="cuda:0"
+    ):
         self.model = model
         self.model_tokenizer = model_tokenizer
-        self.stops = set(stopwords.words('english'))
+        self.stops = set(stopwords.words("english"))
         self.punctuation_set = set(punctuation)
         self.to_strip = " " + punctuation
         self.word_tokenizer = word_tokenizer
         self.device = device
 
-    def augment(self, text, max_char_position=None, exclude_stopwords=False, n=5, important_tokens=None, **kwargs):
+    def augment(
+        self,
+        text,
+        max_char_position=None,
+        exclude_stopwords=False,
+        n=5,
+        important_tokens=None,
+        **kwargs,
+    ):
         joiner = ""
         tokens = self.word_tokenizer(text)
 
         new_texts = []
         positions = []
 
-        important_tokens = {token.strip(self.to_strip).lower() for token in important_tokens}
+        important_tokens = {
+            token.strip(self.to_strip).lower() for token in important_tokens
+        }
 
         seen_prompts = set()
 
@@ -202,10 +216,18 @@ class FastAugmenter:
         masked_tokens = []
 
         for i, token in enumerate(tokens):
-            norm_token = token.strip(self.to_strip).lower() if any(c.isalpha() for c in token) else token
+            norm_token = (
+                token.strip(self.to_strip).lower()
+                if any(c.isalpha() for c in token)
+                else token
+            )
 
-            if not token or word_tokenizer.is_split(token) or (exclude_stopwords and norm_token in self.stops) or (
-                    important_tokens is not None and norm_token not in important_tokens):
+            if (
+                not token
+                or word_tokenizer.is_split(token)
+                or (exclude_stopwords and norm_token in self.stops)
+                or (important_tokens is not None and norm_token not in important_tokens)
+            ):
                 continue
 
             # If no alphanumeric characters, we'll do a special substitution rather than using BERT
@@ -231,8 +253,12 @@ class FastAugmenter:
         if len(masked_texts) == 0:
             return [], []
 
-        inputs = self.model_tokenizer(masked_texts, padding=True, return_tensors="pt").to(self.device)
-        token_probs = softmax(self.model(**inputs).logits.cpu().detach().numpy(), axis=-1)
+        inputs = self.model_tokenizer(
+            masked_texts, padding=True, return_tensors="pt"
+        ).to(self.device)
+        token_probs = softmax(
+            self.model(**inputs).logits.cpu().detach().numpy(), axis=-1
+        )
         inputs = inputs.to("cpu")
 
         chosen_tokens = set()
@@ -243,7 +269,9 @@ class FastAugmenter:
         seen_texts = set()
 
         for i, (masked_token_set, char_position) in enumerate(masked_token_sets):
-            mask_token_index = np.argwhere(inputs["input_ids"][i] == self.model_tokenizer.mask_token_id)[0, 0]
+            mask_token_index = np.argwhere(
+                inputs["input_ids"][i] == self.model_tokenizer.mask_token_id
+            )[0, 0]
 
             mask_token_probs = token_probs[i, mask_token_index, :]
 
@@ -263,24 +291,41 @@ class FastAugmenter:
                 # print(candidate_token)
 
                 # Check that the predicted token isn't the same as the token that was already there
-                normalised_candidate = candidate_token.strip(
-                    self.to_strip).lower() if candidate_token not in self.punctuation_set else candidate_token
-                normalised_token = token.strip(self.to_strip).lower() if token not in self.punctuation_set else token
+                normalised_candidate = (
+                    candidate_token.strip(self.to_strip).lower()
+                    if candidate_token not in self.punctuation_set
+                    else candidate_token
+                )
+                normalised_token = (
+                    token.strip(self.to_strip).lower()
+                    if token not in self.punctuation_set
+                    else token
+                )
 
-                if normalised_candidate == normalised_token or not any(c.isalpha() for c in candidate_token):
+                if normalised_candidate == normalised_token or not any(
+                    c.isalpha() for c in candidate_token
+                ):
                     continue
 
                 # Get most common casing of the word
-                most_common_casing = word_to_casings.get(candidate_token, [(candidate_token, 1)])[0][0]
+                most_common_casing = word_to_casings.get(
+                    candidate_token, [(candidate_token, 1)]
+                )[0][0]
 
                 original_token = masked_tokens[i]
                 # Title case normally has meaning (e.g., start of sentence, in a proper noun, etc.) so follow original token, otherwise use most common
-                best_casing = candidate_token.title() if original_token.istitle() else most_common_casing
+                best_casing = (
+                    candidate_token.title()
+                    if original_token.istitle()
+                    else most_common_casing
+                )
 
                 new_token_set = copy.deepcopy(masked_token_set)
                 # BERT uses ## to denote a tokenisation within a word, so we remove it to glue the word back together
                 masked_text = joiner.join(new_token_set)
-                new_text = masked_text.replace(self.model_tokenizer.mask_token, best_casing, 1).replace(" ##", "")
+                new_text = masked_text.replace(
+                    self.model_tokenizer.mask_token, best_casing, 1
+                ).replace(" ##", "")
 
                 if new_text in seen_texts:
                     continue
@@ -295,8 +340,18 @@ class FastAugmenter:
         return new_texts, positions
 
 
-def augment(model, layer, index, prompt, aug, max_length=1024, inclusion_threshold=-0.5, exclusion_threshold=-0.5, n=5,
-            **kwargs):
+def augment(
+    model,
+    layer,
+    index,
+    prompt,
+    aug,
+    max_length=1024,
+    inclusion_threshold=-0.5,
+    exclusion_threshold=-0.5,
+    n=5,
+    **kwargs,
+):
     """Generate variations of a prompt using an augmenter"""
     prepend_bos = True
     tokens = model.to_tokens(prompt, prepend_bos=prepend_bos)
@@ -312,7 +367,7 @@ def augment(model, layer, index, prompt, aug, max_length=1024, inclusion_thresho
 
     initial_max = torch.max(activations).cpu().item()
     initial_argmax = torch.argmax(activations).cpu().item()
-    max_char_position = len("".join(str_tokens[int(prepend_bos):initial_argmax + 1]))
+    max_char_position = len("".join(str_tokens[int(prepend_bos) : initial_argmax + 1]))
 
     positive_prompts = [(prompt, initial_max, 1)]
     negative_prompts = []
@@ -320,7 +375,9 @@ def augment(model, layer, index, prompt, aug, max_length=1024, inclusion_thresho
     if n == 0:
         return positive_prompts, negative_prompts
 
-    aug_prompts, aug_positions = aug.augment(prompt, max_char_position=max_char_position, n=n, **kwargs)
+    aug_prompts, aug_positions = aug.augment(
+        prompt, max_char_position=max_char_position, n=n, **kwargs
+    )
     if not aug_prompts:
         return positive_prompts, negative_prompts
 
@@ -329,7 +386,9 @@ def augment(model, layer, index, prompt, aug, max_length=1024, inclusion_thresho
     aug_logits, aug_cache = model.run_with_cache(aug_tokens)
     all_aug_activations = aug_cache[layer][:, :, index]
 
-    for aug_prompt, char_position, aug_activations in zip(aug_prompts, aug_positions, all_aug_activations):
+    for aug_prompt, char_position, aug_activations in zip(
+        aug_prompts, aug_positions, all_aug_activations
+    ):
         aug_max = torch.max(aug_activations).cpu().item()
         aug_argmax = torch.argmax(aug_activations).cpu().item()
 
@@ -348,9 +407,25 @@ def augment(model, layer, index, prompt, aug, max_length=1024, inclusion_thresho
     return positive_prompts, negative_prompts
 
 
-def fast_prune(model, layer, neuron, prompt, max_length=1024, proportion_threshold=-0.5, absolute_threshold=None,
-               token_activation_threshold=0.75, window=0, return_maxes=False, cutoff=30, batch_size=4,
-               max_post_context_tokens=5, skip_threshold=0, skip_interval=5, return_intermediates=False, **kwargs):
+def fast_prune(
+    model,
+    layer,
+    neuron,
+    prompt,
+    max_length=1024,
+    proportion_threshold=-0.5,
+    absolute_threshold=None,
+    token_activation_threshold=0.75,
+    window=0,
+    return_maxes=False,
+    cutoff=30,
+    batch_size=4,
+    max_post_context_tokens=5,
+    skip_threshold=0,
+    skip_interval=5,
+    return_intermediates=False,
+    **kwargs,
+):
     """Prune an input prompt to the shortest string that preserves x% of neuron activation on the most activating token."""
 
     prepend_bos = True
@@ -366,18 +441,26 @@ def fast_prune(model, layer, neuron, prompt, max_length=1024, proportion_thresho
     full_initial_max = torch.max(activations).cpu().item()
     full_initial_argmax = torch.argmax(activations).cpu().item()
 
-    sentences, sentence_to_token_indices, token_to_sentence_indices = sentence_tokenizer(str_tokens)
+    (
+        sentences,
+        sentence_to_token_indices,
+        token_to_sentence_indices,
+    ) = sentence_tokenizer(str_tokens)
 
     # print(activation_threshold * full_initial_max)
 
-    strong_indices = torch.where(activations >= token_activation_threshold * full_initial_max)[0]
+    strong_indices = torch.where(
+        activations >= token_activation_threshold * full_initial_max
+    )[0]
     strong_activations = activations[strong_indices].cpu()
     strong_indices = strong_indices.cpu()
 
     # print(strong_activations)
     # print(strong_indices)
 
-    strong_sentence_indices = [token_to_sentence_indices[index.item()] for index in strong_indices]
+    strong_sentence_indices = [
+        token_to_sentence_indices[index.item()] for index in strong_indices
+    ]
 
     pruned_sentences = []
     final_max_indices = []
@@ -385,18 +468,23 @@ def fast_prune(model, layer, neuron, prompt, max_length=1024, proportion_thresho
     initial_maxes = []
     truncated_maxes = []
 
-    for strong_sentence_index, initial_argmax, initial_max in zip(strong_sentence_indices, strong_indices,
-                                                                  strong_activations):
+    for strong_sentence_index, initial_argmax, initial_max in zip(
+        strong_sentence_indices, strong_indices, strong_activations
+    ):
         initial_argmax = initial_argmax.item()
         initial_max = initial_max.item()
         # print(strong_sentence_index, initial_argmax, initial_max)
 
         max_sentence_index = token_to_sentence_indices[initial_argmax]
-        relevant_str_tokens = [str_token for sentence in sentences[:max_sentence_index + 1] for str_token in sentence]
+        relevant_str_tokens = [
+            str_token
+            for sentence in sentences[: max_sentence_index + 1]
+            for str_token in sentence
+        ]
 
-        prior_context = relevant_str_tokens[:initial_argmax + 1]
+        prior_context = relevant_str_tokens[: initial_argmax + 1]
 
-        post_context = relevant_str_tokens[initial_argmax + 1:]
+        post_context = relevant_str_tokens[initial_argmax + 1 :]
 
         shortest_successful_prompt = None
         final_max_index = None
@@ -405,7 +493,7 @@ def fast_prune(model, layer, neuron, prompt, max_length=1024, proportion_thresho
         added_tokens = []
 
         count = 0
-        full_prior = prior_context[:max(0, initial_argmax - window + 1)]
+        full_prior = prior_context[: max(0, initial_argmax - window + 1)]
 
         for i, str_token in reversed(list(enumerate(full_prior))):
             count += 1
@@ -415,7 +503,11 @@ def fast_prune(model, layer, neuron, prompt, max_length=1024, proportion_thresho
 
             # print(count, len(full_prior))
 
-            if not count == len(full_prior) and count >= skip_threshold and count % skip_interval != 0:
+            if (
+                not count == len(full_prior)
+                and count >= skip_threshold
+                and count % skip_interval != 0
+            ):
                 continue
 
             # print("Made it!")
@@ -430,7 +522,9 @@ def fast_prune(model, layer, neuron, prompt, max_length=1024, proportion_thresho
 
         finished = False
         intermediates = []
-        for i, (truncated_batch, added_tokens_batch) in enumerate(zip(batched_truncated_prompts, batched_added_tokens)):
+        for i, (truncated_batch, added_tokens_batch) in enumerate(
+            zip(batched_truncated_prompts, batched_added_tokens)
+        ):
             # print("length", len(truncated_batch))
             # pprint(truncated_batch)
 
@@ -446,7 +540,9 @@ def fast_prune(model, layer, neuron, prompt, max_length=1024, proportion_thresho
             for j, truncated_activations in enumerate(all_truncated_activations):
                 num_added_tokens = added_tokens_batch[j]
                 # print("single shape", truncated_activations.shape)
-                truncated_argmax = torch.argmax(truncated_activations).cpu().item() + num_added_tokens
+                truncated_argmax = (
+                    torch.argmax(truncated_activations).cpu().item() + num_added_tokens
+                )
                 final_max_index = torch.argmax(truncated_activations).cpu().item()
 
                 if prepend_bos:
@@ -465,13 +561,27 @@ def fast_prune(model, layer, neuron, prompt, max_length=1024, proportion_thresho
                 shortest_prompt = truncated_batch[j]
 
                 if not shortest_prompt.startswith("<|endoftext|>"):
-                    truncated_str_tokens = model.to_str_tokens(truncated_batch[j], prepend_bos=False)
-                    intermediates.append((shortest_prompt, truncated_str_tokens[0], truncated_max))
+                    truncated_str_tokens = model.to_str_tokens(
+                        truncated_batch[j], prepend_bos=False
+                    )
+                    intermediates.append(
+                        (shortest_prompt, truncated_str_tokens[0], truncated_max)
+                    )
 
-                if (truncated_argmax == initial_argmax and (
-                        (truncated_max - initial_max) / initial_max > proportion_threshold or
-                        (absolute_threshold is not None and truncated_max >= absolute_threshold))) or (
-                        i == len(batched_truncated_prompts) - 1 and j == len(all_truncated_activations) - 1):
+                if (
+                    truncated_argmax == initial_argmax
+                    and (
+                        (truncated_max - initial_max) / initial_max
+                        > proportion_threshold
+                        or (
+                            absolute_threshold is not None
+                            and truncated_max >= absolute_threshold
+                        )
+                    )
+                ) or (
+                    i == len(batched_truncated_prompts) - 1
+                    and j == len(all_truncated_activations) - 1
+                ):
                     shortest_successful_prompt = shortest_prompt
                     finished = True
                     break
@@ -484,7 +594,8 @@ def fast_prune(model, layer, neuron, prompt, max_length=1024, proportion_thresho
         #   final_max_index = initial_argmax
         # else:
         pruned_sentence = "".join(
-            shortest_successful_prompt)  # if shortest_successful_prompt is not None else shortest_prompt
+            shortest_successful_prompt
+        )  # if shortest_successful_prompt is not None else shortest_prompt
 
         if max_post_context_tokens is not None:
             pruned_sentence += "".join(post_context[:max_post_context_tokens])
@@ -496,7 +607,9 @@ def fast_prune(model, layer, neuron, prompt, max_length=1024, proportion_thresho
         all_intermediates.append(intermediates)
 
     if return_maxes:
-        return list(zip(pruned_sentences, final_max_indices, initial_maxes, truncated_maxes))
+        return list(
+            zip(pruned_sentences, final_max_indices, initial_maxes, truncated_maxes)
+        )
 
     elif return_intermediates:
         return list(zip(pruned_sentences, all_intermediates))
@@ -507,9 +620,21 @@ def fast_prune(model, layer, neuron, prompt, max_length=1024, proportion_thresho
 import copy
 
 
-def fast_measure_importance(model, layer, neuron, prompt, initial_argmax=None, max_length=1024, max_activation=None,
-                            masking_token=1, threshold=0.8, scale_factor=1, return_all=False, activation_threshold=0.1,
-                            **kwargs):
+def fast_measure_importance(
+    model,
+    layer,
+    neuron,
+    prompt,
+    initial_argmax=None,
+    max_length=1024,
+    max_activation=None,
+    masking_token=1,
+    threshold=0.8,
+    scale_factor=1,
+    return_all=False,
+    activation_threshold=0.1,
+    **kwargs,
+):
     """Compute a measure of token importance by masking each token and measuring the drop in activation on the max activating token"""
 
     prepend_bos = True
@@ -577,8 +702,10 @@ def fast_measure_importance(model, layer, neuron, prompt, initial_argmax=None, m
 
     # print("scale_factor measure_importance", scale_factor)
 
-    tokens_and_activations = [[str_token, round(activation.cpu().item() * scale_factor / max_activation, 3)] for
-                              str_token, activation in zip(str_tokens, activations)]
+    tokens_and_activations = [
+        [str_token, round(activation.cpu().item() * scale_factor / max_activation, 3)]
+        for str_token, activation in zip(str_tokens, activations)
+    ]
     important_tokens = []
     tokens_and_importances = [[str_token, 0] for str_token in str_tokens]
 
@@ -588,7 +715,7 @@ def fast_measure_importance(model, layer, neuron, prompt, initial_argmax=None, m
             importances_row = []
             for j, activation in enumerate(masked_activations):
                 activation = activation.cpu().item()
-                normalised_activation = (1 - (activation / activations[j].cpu().item()))
+                normalised_activation = 1 - (activation / activations[j].cpu().item())
                 importances_row.append((str_tokens[j], normalised_activation))
 
             # for j, str_token in enumerate(str_tokens[cutoff:]):
@@ -598,7 +725,7 @@ def fast_measure_importance(model, layer, neuron, prompt, initial_argmax=None, m
             importances_matrix.append(np.array(importances_row))
 
         masked_max = masked_activations[initial_argmax].cpu().item()
-        normalised_activation = (1 - (masked_max / initial_max))
+        normalised_activation = 1 - (masked_max / initial_max)
 
         str_token = tokens_and_importances[i][0]
         tokens_and_importances[i][1] = normalised_activation
@@ -611,9 +738,21 @@ def fast_measure_importance(model, layer, neuron, prompt, initial_argmax=None, m
     if return_all:
         # Flip so we have the importance of all tokens for a given token
         importances_matrix = np.array(importances_matrix)
-        return importances_matrix, initial_max, important_tokens, tokens_and_activations, initial_argmax
+        return (
+            importances_matrix,
+            initial_max,
+            important_tokens,
+            tokens_and_activations,
+            initial_argmax,
+        )
 
-    return tokens_and_importances, initial_max, important_tokens, tokens_and_activations, initial_argmax
+    return (
+        tokens_and_importances,
+        initial_max,
+        important_tokens,
+        tokens_and_activations,
+        initial_argmax,
+    )
 
 
 import seaborn as sns
@@ -621,18 +760,27 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
-def visualise(tokens_and_activations, tokens_and_importances, max_index=None, title=None, truncate=False,
-              labels=["Activation", "Importance"], **kwargs):
+def visualise(
+    tokens_and_activations,
+    tokens_and_importances,
+    max_index=None,
+    title=None,
+    truncate=False,
+    labels=["Activation", "Importance"],
+    **kwargs,
+):
     """Visualise relative token activation and importance"""
     if max_index is None:
         max_index = len(tokens_and_activations)
 
-    zero_width = u'\u200b'
+    zero_width = "\u200b"
     token_counter = Counter()
     data = {}
     count = 0
 
-    for i, ((token, importance), (_, activation)) in enumerate(zip(tokens_and_importances, tokens_and_activations)):
+    for i, ((token, importance), (_, activation)) in enumerate(
+        zip(tokens_and_importances, tokens_and_activations)
+    ):
         if token == "<|endoftext|>":
             continue
 
@@ -661,8 +809,20 @@ def visualise(tokens_and_activations, tokens_and_importances, max_index=None, ti
 from sklearn.model_selection import train_test_split
 
 
-def train_and_eval(model, layer, neuron, aug, train_proportion=0.5, max_train_size=10, max_eval_size=20,
-                   fire_threshold=0.5, random_state=0, train_indexes=None, return_paths=False, **kwargs):
+def train_and_eval(
+    model,
+    layer,
+    neuron,
+    aug,
+    train_proportion=0.5,
+    max_train_size=10,
+    max_eval_size=20,
+    fire_threshold=0.5,
+    random_state=0,
+    train_indexes=None,
+    return_paths=False,
+    **kwargs,
+):
     if isinstance(layer, int):
         layer = layer_index_to_name(layer)
 
@@ -672,11 +832,16 @@ def train_and_eval(model, layer, neuron, aug, train_proportion=0.5, max_train_si
     snippets = get_snippets(model_name, layer_num, neuron)
 
     if train_indexes is None:
-        train_snippets, test_snippets = train_test_split(snippets, train_size=train_proportion,
-                                                         random_state=random_state)
+        train_snippets, test_snippets = train_test_split(
+            snippets, train_size=train_proportion, random_state=random_state
+        )
     else:
-        train_snippets = [snippet for i, snippet in enumerate(snippets) if i in train_indexes]
-        test_snippets = [snippet for i, snippet in enumerate(snippets) if i not in train_indexes]
+        train_snippets = [
+            snippet for i, snippet in enumerate(snippets) if i in train_indexes
+        ]
+        test_snippets = [
+            snippet for i, snippet in enumerate(snippets) if i not in train_indexes
+        ]
     # train_data, test_data = train_test_split(data, train_size=train_proportion, random_state=0)
 
     # train_data_snippets = ["".join(tokens) for tokens, activations in train_data if any(activation > fire_threshold for activation in activations)][:max_train_size]
@@ -688,7 +853,9 @@ def train_and_eval(model, layer, neuron, aug, train_proportion=0.5, max_train_si
         # if i % 10 == 0:
         print(f"Processing {i + 1} of {len(all_train_snippets)}")
 
-        pruned_results = fast_prune(model, layer, neuron, snippet, return_maxes=True, **kwargs)
+        pruned_results = fast_prune(
+            model, layer, neuron, snippet, return_maxes=True, **kwargs
+        )
 
         for pruned_prompt, _, initial_max_act, truncated_max_act in pruned_results:
             # tokens = model.to_tokens(pruned_prompt, prepend_bos=True)
@@ -711,8 +878,16 @@ def train_and_eval(model, layer, neuron, aug, train_proportion=0.5, max_train_si
             if pruned_prompt is None:
                 continue
 
-            info = augment_and_return(model, layer, neuron, aug, pruned_prompt, base_max_act=base_max_act,
-                                      scale_factor=scale_factor, **kwargs)
+            info = augment_and_return(
+                model,
+                layer,
+                neuron,
+                aug,
+                pruned_prompt,
+                base_max_act=base_max_act,
+                scale_factor=scale_factor,
+                **kwargs,
+            )
             all_info.append(info)
 
     neuron_model = NeuronModel(layer_num, neuron, **kwargs)
@@ -741,7 +916,9 @@ def train_and_eval(model, layer, neuron, aug, train_proportion=0.5, max_train_si
 
     print("Max Activating Evaluation Data")
     try:
-        stats = evaluate(neuron_model, max_test_data, fire_threshold=fire_threshold, **kwargs)
+        stats = evaluate(
+            neuron_model, max_test_data, fire_threshold=fire_threshold, **kwargs
+        )
     except Exception as e:
         stats = {}
         print(f"Stats failed with error: {e}")
@@ -751,17 +928,46 @@ def train_and_eval(model, layer, neuron, aug, train_proportion=0.5, max_train_si
     return stats
 
 
-def augment_and_return(model, layer, neuron, aug, pruned_prompt, base_max_act=None, use_index=False, scale_factor=1,
-                       **kwargs):
+def augment_and_return(
+    model,
+    layer,
+    neuron,
+    aug,
+    pruned_prompt,
+    base_max_act=None,
+    use_index=False,
+    scale_factor=1,
+    **kwargs,
+):
     info = []
-    importances_matrix, initial_max_act, important_tokens, tokens_and_activations, initial_max_index = fast_measure_importance(
-        model, layer, neuron, pruned_prompt, max_activation=base_max_act, scale_factor=scale_factor, return_all=True)
+    (
+        importances_matrix,
+        initial_max_act,
+        important_tokens,
+        tokens_and_activations,
+        initial_max_index,
+    ) = fast_measure_importance(
+        model,
+        layer,
+        neuron,
+        pruned_prompt,
+        max_activation=base_max_act,
+        scale_factor=scale_factor,
+        return_all=True,
+    )
 
     if base_max_act is not None:
         initial_max_act = base_max_act
 
-    positive_prompts, negative_prompts = augment(model, layer, neuron, pruned_prompt, aug,
-                                                 important_tokens=set(important_tokens), **kwargs)
+    positive_prompts, negative_prompts = augment(
+        model,
+        layer,
+        neuron,
+        pruned_prompt,
+        aug,
+        important_tokens=set(important_tokens),
+        **kwargs,
+    )
 
     for i, (prompt, activation, change) in enumerate(positive_prompts):
         title = prompt
@@ -775,79 +981,176 @@ def augment_and_return(model, layer, neuron, aug, pruned_prompt, base_max_act=No
         #   print(prompt, "\n")
 
         if use_index:
-            importances_matrix, max_act, _, tokens_and_activations, max_index = fast_measure_importance(model, layer,
-                                                                                                        neuron, prompt,
-                                                                                                        max_activation=initial_max_act,
-                                                                                                        initial_argmax=initial_max_index,
-                                                                                                        scale_factor=scale_factor,
-                                                                                                        return_all=True)
+            (
+                importances_matrix,
+                max_act,
+                _,
+                tokens_and_activations,
+                max_index,
+            ) = fast_measure_importance(
+                model,
+                layer,
+                neuron,
+                prompt,
+                max_activation=initial_max_act,
+                initial_argmax=initial_max_index,
+                scale_factor=scale_factor,
+                return_all=True,
+            )
         else:
-            importances_matrix, max_act, _, tokens_and_activations, max_index = fast_measure_importance(model, layer,
-                                                                                                        neuron, prompt,
-                                                                                                        max_activation=initial_max_act,
-                                                                                                        scale_factor=scale_factor,
-                                                                                                        return_all=True)
+            (
+                importances_matrix,
+                max_act,
+                _,
+                tokens_and_activations,
+                max_index,
+            ) = fast_measure_importance(
+                model,
+                layer,
+                neuron,
+                prompt,
+                max_activation=initial_max_act,
+                scale_factor=scale_factor,
+                return_all=True,
+            )
         info.append((importances_matrix, tokens_and_activations, max_index))
 
     for prompt, activation, change in negative_prompts:
         if use_index:
-            importances_matrix, max_act, _, tokens_and_activations, max_index = fast_measure_importance(model, layer,
-                                                                                                        neuron, prompt,
-                                                                                                        max_activation=initial_max_act,
-                                                                                                        initial_argmax=initial_max_index,
-                                                                                                        scale_factor=scale_factor,
-                                                                                                        return_all=True)
+            (
+                importances_matrix,
+                max_act,
+                _,
+                tokens_and_activations,
+                max_index,
+            ) = fast_measure_importance(
+                model,
+                layer,
+                neuron,
+                prompt,
+                max_activation=initial_max_act,
+                initial_argmax=initial_max_index,
+                scale_factor=scale_factor,
+                return_all=True,
+            )
         else:
-            importances_matrix, max_act, _, tokens_and_activations, max_index = fast_measure_importance(model, layer,
-                                                                                                        neuron, prompt,
-                                                                                                        max_activation=initial_max_act,
-                                                                                                        scale_factor=scale_factor,
-                                                                                                        return_all=True)
+            (
+                importances_matrix,
+                max_act,
+                _,
+                tokens_and_activations,
+                max_index,
+            ) = fast_measure_importance(
+                model,
+                layer,
+                neuron,
+                prompt,
+                max_activation=initial_max_act,
+                scale_factor=scale_factor,
+                return_all=True,
+            )
         info.append((importances_matrix, tokens_and_activations, max_index))
 
     return info
 
 
-def fast_augment_and_visualise(model, layer, neuron, aug, pruned_prompt, use_index=False, **kwargs):
-    tokens_and_importances, max_act, important_tokens, tokens_and_activations, initial_max_index = fast_measure_importance(
-        model, layer, neuron, pruned_prompt)
+def fast_augment_and_visualise(
+    model, layer, neuron, aug, pruned_prompt, use_index=False, **kwargs
+):
+    (
+        tokens_and_importances,
+        max_act,
+        important_tokens,
+        tokens_and_activations,
+        initial_max_index,
+    ) = fast_measure_importance(model, layer, neuron, pruned_prompt)
 
-    positive_prompts, negative_prompts = augment(model, layer, neuron, pruned_prompt, aug,
-                                                 important_tokens=set(important_tokens), **kwargs)
+    positive_prompts, negative_prompts = augment(
+        model,
+        layer,
+        neuron,
+        pruned_prompt,
+        aug,
+        important_tokens=set(important_tokens),
+        **kwargs,
+    )
     for i, (prompt, activation, change) in enumerate(positive_prompts):
         title = prompt
         if i == 0:
             title = "Original - " + prompt
         if use_index:
-            tokens_and_importances, _, _, tokens_and_activations, max_index = fast_measure_importance(model, layer,
-                                                                                                      neuron, prompt,
-                                                                                                      max_activation=max_act,
-                                                                                                      initial_argmax=initial_max_index)
+            (
+                tokens_and_importances,
+                _,
+                _,
+                tokens_and_activations,
+                max_index,
+            ) = fast_measure_importance(
+                model,
+                layer,
+                neuron,
+                prompt,
+                max_activation=max_act,
+                initial_argmax=initial_max_index,
+            )
         else:
-            tokens_and_importances, _, _, tokens_and_activations, max_index = fast_measure_importance(model, layer,
-                                                                                                      neuron, prompt,
-                                                                                                      max_activation=max_act)
+            (
+                tokens_and_importances,
+                _,
+                _,
+                tokens_and_activations,
+                max_index,
+            ) = fast_measure_importance(
+                model, layer, neuron, prompt, max_activation=max_act
+            )
         # visualise(tokens_and_activations, tokens_and_importances, max_index, title=title, **kwargs)
 
     for prompt, activation, change in negative_prompts:
         if use_index:
-            tokens_and_importances, _, _, tokens_and_activations, max_index = fast_measure_importance(model, layer,
-                                                                                                      neuron, prompt,
-                                                                                                      max_activation=max_act,
-                                                                                                      initial_argmax=initial_max_index)
+            (
+                tokens_and_importances,
+                _,
+                _,
+                tokens_and_activations,
+                max_index,
+            ) = fast_measure_importance(
+                model,
+                layer,
+                neuron,
+                prompt,
+                max_activation=max_act,
+                initial_argmax=initial_max_index,
+            )
         else:
-            tokens_and_importances, _, _, tokens_and_activations, max_index = fast_measure_importance(model, layer,
-                                                                                                      neuron, prompt,
-                                                                                                      max_activation=max_act)
+            (
+                tokens_and_importances,
+                _,
+                _,
+                tokens_and_activations,
+                max_index,
+            ) = fast_measure_importance(
+                model, layer, neuron, prompt, max_activation=max_act
+            )
         # visualise(tokens_and_activations, tokens_and_importances, max_index, title=prompt, **kwargs)
 
 
-def fast_run(model, layer, neuron, aug, snippets=None, num_examples=5, example_indexes=None, **kwargs):
+def fast_run(
+    model,
+    layer,
+    neuron,
+    aug,
+    snippets=None,
+    num_examples=5,
+    example_indexes=None,
+    **kwargs,
+):
     """For a given neuron, grab the max activating dataset examples, run them through the pruning and augmentation steps, and visualise the results"""
     if snippets is None:
         snippets = get_snippets(model_name, layer, neuron)
         if example_indexes is not None:
-            snippets = [snippet for i, snippet in enumerate(snippets) if i in example_indexes]
+            snippets = [
+                snippet for i, snippet in enumerate(snippets) if i in example_indexes
+            ]
         else:
             snippets = snippets[:num_examples]
 
@@ -855,7 +1158,9 @@ def fast_run(model, layer, neuron, aug, snippets=None, num_examples=5, example_i
         layer = f"blocks.{layer}.{layer_ending}"
 
     for snippet in snippets:
-        pruned_prompt, _ = fast_prune(model, layer, neuron, snippet, include_post_context=False, **kwargs)
+        pruned_prompt, _ = fast_prune(
+            model, layer, neuron, snippet, include_post_context=False, **kwargs
+        )
 
         if pruned_prompt is None:
             continue
@@ -884,19 +1189,28 @@ def evaluate(neuron_model, data, fire_threshold=0.5, **kwargs):
     y_pred_act = []
     for prompt_tokens, activations in data:
         # print("truth")
-        non_zero_indices = [i for i, activation in enumerate(activations) if activation > 0]
+        non_zero_indices = [
+            i for i, activation in enumerate(activations) if activation > 0
+        ]
         start = max(0, non_zero_indices[0] - 10)
         end = min(len(prompt_tokens) - 1, non_zero_indices[-1] + 10)
-        pred_activations = neuron_model.forward([prompt_tokens], return_activations=True)[0]
+        pred_activations = neuron_model.forward(
+            [prompt_tokens], return_activations=True
+        )[0]
 
         y_act.extend(activations)
         y_pred_act.extend(pred_activations)
 
-        important_context = list(zip(prompt_tokens, activations, pred_activations))[start:end]
+        important_context = list(zip(prompt_tokens, activations, pred_activations))[
+            start:end
+        ]
 
         # print(important_context)
         # print(len(pred_activations))
-        pred_firings = [int(pred_activation >= fire_threshold) for pred_activation in pred_activations]
+        pred_firings = [
+            int(pred_activation >= fire_threshold)
+            for pred_activation in pred_activations
+        ]
         firings = [int(activation >= fire_threshold) for activation in activations]
         y_pred.extend(pred_firings)
         y.extend(firings)
@@ -926,8 +1240,17 @@ def evaluate(neuron_model, data, fire_threshold=0.5, **kwargs):
     return report
 
 
-def train_and_eval_baseline(model, layer, neuron, Baseline, train_proportion=0.5, fire_threshold=0.5, random_state=0,
-                            train_indexes=None, **kwargs):
+def train_and_eval_baseline(
+    model,
+    layer,
+    neuron,
+    Baseline,
+    train_proportion=0.5,
+    fire_threshold=0.5,
+    random_state=0,
+    train_indexes=None,
+    **kwargs,
+):
     if isinstance(layer, int):
         layer = layer_index_to_name(layer)
 
@@ -939,11 +1262,16 @@ def train_and_eval_baseline(model, layer, neuron, Baseline, train_proportion=0.5
     # data = get_data(layer_num, neuron)
 
     if train_indexes is None:
-        train_snippets, test_snippets = train_test_split(snippets, train_size=train_proportion,
-                                                         random_state=random_state)
+        train_snippets, test_snippets = train_test_split(
+            snippets, train_size=train_proportion, random_state=random_state
+        )
     else:
-        train_snippets = [snippet for i, snippet in enumerate(snippets) if i in train_indexes]
-        test_snippets = [snippet for i, snippet in enumerate(snippets) if i not in train_indexes]
+        train_snippets = [
+            snippet for i, snippet in enumerate(snippets) if i in train_indexes
+        ]
+        test_snippets = [
+            snippet for i, snippet in enumerate(snippets) if i not in train_indexes
+        ]
     # train_data, test_data = train_test_split(data, train_size=train_proportion, random_state=0)
 
     # train_data_snippets = ["".join(tokens) for tokens, activations in train_data if any(activation > fire_threshold for activation in activations)][:max_train_size]
@@ -968,7 +1296,9 @@ def train_and_eval_baseline(model, layer, neuron, Baseline, train_proportion=0.5
 
     print("Max Activating Evaluation Data")
     # try:
-    stats = evaluate(baseline_model, max_test_data, fire_threshold=fire_threshold, **kwargs)
+    stats = evaluate(
+        baseline_model, max_test_data, fire_threshold=fire_threshold, **kwargs
+    )
 
     # except Exception as e:
     #   stats = {}
@@ -977,7 +1307,15 @@ def train_and_eval_baseline(model, layer, neuron, Baseline, train_proportion=0.5
     return stats
 
 
-def evaluate_baseline(baseline, folder_name, layers=6, neurons=3072, layer_start=0, neuron_start=0, **kwargs):
+def evaluate_baseline(
+    baseline,
+    folder_name,
+    layers=6,
+    neurons=3072,
+    layer_start=0,
+    neuron_start=0,
+    **kwargs,
+):
     random.seed(0)
 
     all_neuron_indices = [i for i in range(neurons)]
@@ -1003,8 +1341,15 @@ def evaluate_baseline(baseline, folder_name, layers=6, neurons=3072, layer_start
         for j, neuron in enumerate(range(neuron_start, neurons)):
             print(f"{layer=} {neuron=}")
             try:
-                stats = train_and_eval_baseline(model, layer, neuron, baseline, train_proportion=0.5,
-                                                fire_threshold=0.5, **kwargs)
+                stats = train_and_eval_baseline(
+                    model,
+                    layer,
+                    neuron,
+                    baseline,
+                    train_proportion=0.5,
+                    fire_threshold=0.5,
+                    **kwargs,
+                )
 
                 all_stats[layer][neuron] = stats
 
@@ -1037,18 +1382,29 @@ def get_summary_stats(path, verbose=True):
 
     for layer, layer_stats in stats.items():
         # pprint(layer_stats)
-        eligible_neurons = [neuron for neuron, neuron_stats in layer_stats.items() if "1" in neuron_stats]
+        eligible_neurons = [
+            neuron
+            for neuron, neuron_stats in layer_stats.items()
+            if "1" in neuron_stats
+        ]
         # neuron_sample = set(random.sample(eligible_neurons, 50))
         eligible_neurons = set(eligible_neurons)
 
-        aggr_stats_dict = {"Inactivating": defaultdict(list), "Activating": defaultdict(list)}
+        aggr_stats_dict = {
+            "Inactivating": defaultdict(list),
+            "Activating": defaultdict(list),
+        }
         for neuron, neuron_stats in layer_stats.items():
             if neuron not in eligible_neurons:
                 inelegible_count += 1
                 continue
 
-            aggr_stats_dict["Inactivating"]["Precision"].append(neuron_stats["0"]["precision"])
-            aggr_stats_dict["Inactivating"]["Recall"].append(neuron_stats["0"]["recall"])
+            aggr_stats_dict["Inactivating"]["Precision"].append(
+                neuron_stats["0"]["precision"]
+            )
+            aggr_stats_dict["Inactivating"]["Recall"].append(
+                neuron_stats["0"]["recall"]
+            )
             aggr_stats_dict["Inactivating"]["F1"].append(neuron_stats["0"]["f1-score"])
 
             # print(neuron_stats["0"]["precision"], neuron_stats["0"]["recall"], neuron_stats["0"]["f1-score"],
@@ -1060,7 +1416,9 @@ def get_summary_stats(path, verbose=True):
                 precision_case += 1
                 neuron_stats["1"]["precision"] = 1.0
 
-            aggr_stats_dict["Activating"]["Precision"].append(neuron_stats["1"]["precision"])
+            aggr_stats_dict["Activating"]["Precision"].append(
+                neuron_stats["1"]["precision"]
+            )
             aggr_stats_dict["Activating"]["Recall"].append(neuron_stats["1"]["recall"])
             aggr_stats_dict["Activating"]["F1"].append(neuron_stats["1"]["f1-score"])
 
@@ -1071,7 +1429,9 @@ def get_summary_stats(path, verbose=True):
         # if neuron_stats["1"]["recall"] > 0.8:
         #   print(f'{layer}, {neuron}, {neuron_stats["1"]["precision"]:.3f}, {neuron_stats["1"]["recall"]:.3f}, {neuron_stats["1"]["f1-score"]:.3f}')
         if verbose:
-            print("Neurons Evaluated:", len(aggr_stats_dict["Inactivating"]["Precision"]))
+            print(
+                "Neurons Evaluated:", len(aggr_stats_dict["Inactivating"]["Precision"])
+            )
 
         avg_stats_dict = {"Inactivating": {}, "Activating": {}}
         std_stats_dict = {"Inactivating": {}, "Activating": {}}
@@ -1085,7 +1445,9 @@ def get_summary_stats(path, verbose=True):
         # break
 
     if verbose:
-        for layer, (summary, std_summary) in enumerate(zip(summary_stats, summary_stds)):
+        for layer, (summary, std_summary) in enumerate(
+            zip(summary_stats, summary_stds)
+        ):
             print("\n")
             pprint(summary)
             pprint(std_summary)
@@ -1107,10 +1469,7 @@ from IPython.display import Image, display
 class NeuronStore:
     def __init__(self, path):
         if not os.path.exists(path):
-            neuron_store = {
-                "activating": {},
-                "important": {}
-            }
+            neuron_store = {"activating": {}, "important": {}}
             with open(path, "w") as ofh:
                 json.dump(neuron_store, ofh, indent=2, ensure_ascii=False)
 
@@ -1129,12 +1488,16 @@ class NeuronStore:
         self.to_sets()
 
     def to_sets(self):
-        self.store = {token_type: {token: set(info) for token, info in token_dict.items()} for token_type, token_dict in
-                      self.store.items()}
+        self.store = {
+            token_type: {token: set(info) for token, info in token_dict.items()}
+            for token_type, token_dict in self.store.items()
+        }
 
     def to_lists(self):
-        self.store = {token_type: {token: list(set(info)) for token, info in token_dict.items()} for
-                      token_type, token_dict in self.store.items()}
+        self.store = {
+            token_type: {token: list(set(info)) for token, info in token_dict.items()}
+            for token_type, token_dict in self.store.items()
+        }
 
     def by_neuron(self):
         self.neuron_to_tokens = {}
@@ -1142,14 +1505,19 @@ class NeuronStore:
             for token, neurons in token_dict.items():
                 for neuron in neurons:
                     if neuron not in self.neuron_to_tokens:
-                        self.neuron_to_tokens[neuron] = {"activating": set(), "important": set()}
+                        self.neuron_to_tokens[neuron] = {
+                            "activating": set(),
+                            "important": set(),
+                        }
                     self.neuron_to_tokens[neuron][token_type].add(token)
 
     def search(self, tokens_and_types):
         match_arr = []
 
         for token, token_type in tokens_and_types:
-            token_types = [token_type] if token_type is not None else ["activating", "important"]
+            token_types = (
+                [token_type] if token_type is not None else ["activating", "important"]
+            )
             token_matches = set()
 
             for token_type in token_types:
@@ -1181,7 +1549,9 @@ class NeuronStore:
             if i % 1000 == 0:
                 print(f"{i} of {len(self.neuron_to_tokens.items())} complete")
 
-            for j, (neuron_2, neuron_dict_2) in enumerate(self.neuron_to_tokens.items()):
+            for j, (neuron_2, neuron_dict_2) in enumerate(
+                self.neuron_to_tokens.items()
+            ):
                 if i <= j:
                     continue
 
@@ -1193,8 +1563,12 @@ class NeuronStore:
                     length_2 = len(neuron_dict_2[token_type])
 
                     intersection = neuron_dict_1[token_type] & neuron_dict_2[token_type]
-                    similar = (len(intersection) / max(length_1, length_2, 1)) >= threshold
-                    subset = len(intersection) / max(min(length_1, length_2), 1) >= threshold
+                    similar = (
+                        len(intersection) / max(length_1, length_2, 1)
+                    ) >= threshold
+                    subset = (
+                        len(intersection) / max(min(length_1, length_2), 1) >= threshold
+                    )
 
                     all_similar.append(similar)
                     all_subset.append(subset)
@@ -1203,7 +1577,11 @@ class NeuronStore:
                     similar_pairs.append((neuron_1, neuron_2))
                 elif all(all_subset):
                     # The first token indicates the superset neuron and the second the subset neuron
-                    subset_pair = (neuron_1, neuron_2) if length_2 < length_1 else (neuron_2, neuron_1)
+                    subset_pair = (
+                        (neuron_1, neuron_2)
+                        if length_2 < length_1
+                        else (neuron_2, neuron_1)
+                    )
                     subset_pairs.append(subset_pair)
 
         return similar_pairs, subset_pairs
@@ -1214,7 +1592,15 @@ def view_neuron(path):
 
 
 class NeuronNode:
-    def __init__(self, id_=None, value=None, children=None, depth=None, important=False, activator=False):
+    def __init__(
+        self,
+        id_=None,
+        value=None,
+        children=None,
+        depth=None,
+        important=False,
+        activator=False,
+    ):
         if value is None:
             value = {}
         if children is None:
@@ -1251,12 +1637,22 @@ class NeuronEdge:
 
 
 class NeuronModel:
-    def __init__(self, layer, neuron, activation_threshold=0.1, importance_threshold=0.5, folder_name=None,
-                 neuron_store=None, **kwargs):
+    def __init__(
+        self,
+        layer,
+        neuron,
+        activation_threshold=0.1,
+        importance_threshold=0.5,
+        folder_name=None,
+        neuron_store=None,
+        **kwargs,
+    ):
         self.layer = layer
         self.neuron = neuron
-        self.Element = namedtuple("Element",
-                                  "importance, activation, token, important, activator, ignore, is_end, token_value")
+        self.Element = namedtuple(
+            "Element",
+            "importance, activation, token, important, activator, ignore, is_end, token_value",
+        )
         self.neuron_store = neuron_store
 
         self.root_token = "**ROOT**"
@@ -1265,11 +1661,25 @@ class NeuronModel:
         self.special_tokens = {self.root_token, self.ignore_token, self.end_token}
 
         self.root = (
-            NeuronNode(-1, self.Element(0, 0, self.root_token, False, False, True, False, self.root_token), depth=-1),
-            NeuronEdge())
+            NeuronNode(
+                -1,
+                self.Element(
+                    0, 0, self.root_token, False, False, True, False, self.root_token
+                ),
+                depth=-1,
+            ),
+            NeuronEdge(),
+        )
         self.trie_root = (
-            NeuronNode(-1, self.Element(0, 0, self.root_token, False, False, True, False, self.root_token), depth=-1),
-            NeuronEdge())
+            NeuronNode(
+                -1,
+                self.Element(
+                    0, 0, self.root_token, False, False, True, False, self.root_token
+                ),
+                depth=-1,
+            ),
+            NeuronEdge(),
+        )
         self.activation_threshold = activation_threshold
         self.importance_threshold = importance_threshold
         # self.net = Network(notebook=True)
@@ -1283,8 +1693,13 @@ class NeuronModel:
         #     node_attr={"fixedsize": "true", "width": "2", "height": "0.75"}
         # )
         self.net = Digraph(
-            graph_attr={"rankdir": "RL", "splines": "spline", "ranksep": "1.5", "nodesep": "0.2"},
-            node_attr={"fixedsize": "true", "width": "2", "height": "0.75"}
+            graph_attr={
+                "rankdir": "RL",
+                "splines": "spline",
+                "ranksep": "1.5",
+                "nodesep": "0.2",
+            },
+            node_attr={"fixedsize": "true", "width": "2", "height": "0.75"},
         )
         self.node_count = 0
         self.trie_node_count = 0
@@ -1337,8 +1752,11 @@ class NeuronModel:
             token = node.value.token
 
             if token not in self.special_tokens:
-                add_dict = self.neuron_store.store["activating"] if node.value.activator else self.neuron_store.store[
-                    "important"]
+                add_dict = (
+                    self.neuron_store.store["activating"]
+                    if node.value.activator
+                    else self.neuron_store.store["important"]
+                )
                 if token not in add_dict:
                     add_dict[token] = set()
                 add_dict[token].add(f"{self.layer}_{self.neuron}")
@@ -1351,9 +1769,14 @@ class NeuronModel:
 
     @staticmethod
     def normalise(token):
-        normalised_token = token.lower() if token.istitle() and len(token) > 1 else token
-        normalised_token = normalised_token.strip() if len(normalised_token) > 1 and any(
-            c.isalpha() for c in normalised_token) else normalised_token
+        normalised_token = (
+            token.lower() if token.istitle() and len(token) > 1 else token
+        )
+        normalised_token = (
+            normalised_token.strip()
+            if len(normalised_token) > 1 and any(c.isalpha() for c in normalised_token)
+            else normalised_token
+        )
         return normalised_token
 
     def make_line(self, info, important_index_sets=None):
@@ -1381,15 +1804,18 @@ class NeuronModel:
 
             # print("\ntoken", token)
 
-            before = tokens_and_activations[:i + 1]
+            before = tokens_and_activations[: i + 1]
 
             line = []
             last_important = 0
 
             if not create_indices:
                 # The if else is a bit of a hack to account for augmentations that have a different number of tokens to the original prompt
-                important_indices = important_index_sets[i] if i < len(important_index_sets) else important_index_sets[
-                    -1]
+                important_indices = (
+                    important_index_sets[i]
+                    if i < len(important_index_sets)
+                    else important_index_sets[-1]
+                )
             else:
                 important_indices = set()
 
@@ -1408,7 +1834,8 @@ class NeuronModel:
                 # print("importance", importance)
 
                 important = importance > self.importance_threshold or (
-                        not create_indices and seq_index in important_indices)
+                    not create_indices and seq_index in important_indices
+                )
                 activator = seq_activation > self.activation_threshold
 
                 # print("important_index_sets[i]", important_index_sets[i])
@@ -1427,8 +1854,16 @@ class NeuronModel:
 
                 seq_token_identifier = self.ignore_token if ignore else seq_token
 
-                new_element = self.Element(importance, seq_activation, seq_token_identifier, important, activator,
-                                           ignore, is_end, seq_token)
+                new_element = self.Element(
+                    importance,
+                    seq_activation,
+                    seq_token_identifier,
+                    important,
+                    activator,
+                    ignore,
+                    is_end,
+                    seq_token,
+                )
 
                 # print("new_element", new_element)
 
@@ -1437,9 +1872,20 @@ class NeuronModel:
 
                 line.append(new_element)
 
-            line = line[:last_important + 1]
+            line = line[: last_important + 1]
             # Add an end node
-            line.append(self.Element(0, activation, self.end_token, False, False, True, True, self.end_token))
+            line.append(
+                self.Element(
+                    0,
+                    activation,
+                    self.end_token,
+                    False,
+                    False,
+                    True,
+                    True,
+                    self.end_token,
+                )
+            )
             # print(line)
             all_lines.append(line)
 
@@ -1545,10 +1991,10 @@ class NeuronModel:
 
     def merge_ignores(self):
         """
-    Where a set of children contain an ignore token, merge the other nodes into it:
-      - Fully merge if the other node is not an end node
-      - Give the ignore node the other node's children (if it has any) if the other node is an end node
-    """
+        Where a set of children contain an ignore token, merge the other nodes into it:
+          - Fully merge if the other node is not an end node
+          - Give the ignore node the other node's children (if it has any) if the other node is an end node
+        """
         # print("\n\n******MERGING*******")
         visited = set()  # List to keep track of visited nodes.
         queue = []  # Initialize a queue
@@ -1581,13 +2027,18 @@ class NeuronModel:
                     for path in child_paths:
                         # print("path", path)
                         # Don't merge if the path is only the first tuple, or the first tuple and an end tuple
-                        if len(path) <= 1 or (len(path) == 2 and path[-1].token == self.end_token):
+                        if len(path) <= 1 or (
+                            len(path) == 2 and path[-1].token == self.end_token
+                        ):
                             continue
                         # Merge the path (not including the first tuple that we're merging)
                         self.add(ignore_tuple, path[1:], graph=False)
 
                     # Add the node to a list to be removed later if it isn't an end node and doesn't have an end node in its children
-                    if not child_node.value.is_end and not self.end_token in child_node.children:
+                    if (
+                        not child_node.value.is_end
+                        and not self.end_token in child_node.children
+                    ):
                         # if not self.end_token in child_node.children:
                         to_remove.append(child_token)
 
@@ -1615,9 +2066,15 @@ class NeuronModel:
             # print("i, token", i, [token])
             # print("current_node.children", current_node.children)
 
-            if token in current_node.children or self.ignore_token in current_node.children:
-                current_tuple = current_node.children[token] if token in current_node.children else \
-                    current_node.children[self.ignore_token]
+            if (
+                token in current_node.children
+                or self.ignore_token in current_node.children
+            ):
+                current_tuple = (
+                    current_node.children[token]
+                    if token in current_node.children
+                    else current_node.children[self.ignore_token]
+                )
 
                 node, edge = current_tuple
                 # If the first token is not an activator, return early
@@ -1640,7 +2097,9 @@ class NeuronModel:
         # Return the activation on the longest sequence
         return activations[-1]
 
-    def forward(self, tokens_arr: List[List[str]], return_activations=True) -> List[List[float]]:
+    def forward(
+        self, tokens_arr: List[List[str]], return_activations=True
+    ) -> List[List[float]]:
         if isinstance(tokens_arr[0], str):
             raise ValueError(f"tokens_arr must be of type List[List[str]]")
 
@@ -1655,7 +2114,7 @@ class NeuronModel:
             firings = []
 
             for j in range(len(tokens)):
-                token_activation = self.search(tokens[:len(tokens) - j])
+                token_activation = self.search(tokens[: len(tokens) - j])
                 activations.append(token_activation)
                 firings.append(token_activation > self.activation_threshold)
 
@@ -1680,7 +2139,7 @@ class NeuronModel:
         visited.add(start_node[0].id_)
         queue.append(start_node)
 
-        zero_width = u'\u200b'
+        zero_width = "\u200b"
         # zero_width = "a"
 
         tokens_by_layer = {}
@@ -1718,7 +2177,9 @@ class NeuronModel:
             if depth not in tokens_by_layer:
                 tokens_by_layer[depth] = {}
                 # depth_to_subgraph[depth] = Graph(name=f"cluster_{str(self.max_depth - depth)}")
-                depth_to_subgraph[depth] = Digraph(name=f"cluster_{str(self.max_depth - depth)}")
+                depth_to_subgraph[depth] = Digraph(
+                    name=f"cluster_{str(self.max_depth - depth)}"
+                )
                 # depth_to_subgraph[depth].attr(label=f"Depth {str(depth)}")
                 depth_to_subgraph[depth].attr(pencolor="white", penwidth="3")
 
@@ -1747,13 +2208,23 @@ class NeuronModel:
 
             if depth == 0:
                 # colour red according to activation for depth 0 tokens
-                scaled_activation = int(adjust(node.value.activation, max(0, self.activation_threshold - 0.2)) * 255)
+                scaled_activation = int(
+                    adjust(
+                        node.value.activation, max(0, self.activation_threshold - 0.2)
+                    )
+                    * 255
+                )
                 rgb = (255, 255 - scaled_activation, 255 - scaled_activation)
             else:
                 # colour blue according to importance for all other tokens
                 # Shift and scale importance so the importance threshold becomes 0
 
-                scaled_importance = int(adjust(node.value.importance, max(0.1, self.importance_threshold - 0.2)) * 255)
+                scaled_importance = int(
+                    adjust(
+                        node.value.importance, max(0.1, self.importance_threshold - 0.2)
+                    )
+                    * 255
+                )
                 rgb = (255 - scaled_importance, 255 - scaled_importance, 255)
 
             hex = "#{0:02x}{1:02x}{2:02x}".format(*self.clamp(rgb))
@@ -1762,7 +2233,11 @@ class NeuronModel:
 
             if graph_node_id not in added_ids and not node.value.ignore:
                 display_token = token.strip(zero_width)
-                display_token = json.dumps(display_token).strip('[]"') if '"' not in token else display_token
+                display_token = (
+                    json.dumps(display_token).strip('[]"')
+                    if '"' not in token
+                    else display_token
+                )
                 if set(display_token) == {" "}:
                     display_token = f"'{display_token}'"
 
@@ -1778,13 +2253,22 @@ class NeuronModel:
                 # )
 
                 current_graph.node(
-                    graph_node_id, f"{escape(display_token)}", fillcolor=hex, shape="box",
-                    style="filled,solid", fontcolor=fontcolor, fontsize=fontsize,
-                    penwidth=edge_width
+                    graph_node_id,
+                    f"{escape(display_token)}",
+                    fillcolor=hex,
+                    shape="box",
+                    style="filled,solid",
+                    fontcolor=fontcolor,
+                    fontsize=fontsize,
+                    penwidth=edge_width,
                 )
                 added_ids.add(graph_node_id)
 
-            if edge.parent is not None and edge.parent.id_ in visited and not edge.parent.value.ignore:
+            if (
+                edge.parent is not None
+                and edge.parent.id_ in visited
+                and not edge.parent.value.ignore
+            ):
                 # self.net.add_edge(node.id_, edge.parent.id_, value=edge.weight, title=round(edge.weight, 2))
                 # pprint(node_id_to_graph_id)
                 # print([token])
@@ -1811,7 +2295,7 @@ class NeuronModel:
         for depth, subgraph in depth_to_subgraph.items():
             self.net.subgraph(subgraph)
 
-        path_parts = ['neuron_graphs', model_name]
+        path_parts = ["neuron_graphs", model_name]
 
         if self.folder_name is not None:
             path_parts.append(self.folder_name)
@@ -1824,10 +2308,10 @@ class NeuronModel:
             if not os.path.exists(save_path):
                 os.mkdir(save_path)
 
-        self.net.format = 'svg'
+        self.net.format = "svg"
         filename = "graph" if graph else "trie"
         self.net.render(f"{save_path}/{filename}", view=False)
-        self.net.format = 'png'
+        self.net.format = "png"
         self.net.render(f"{save_path}/{filename}", view=False)
         # print(self.net.source)
 
@@ -1859,12 +2343,18 @@ class TokenPredictor:
             neuron_activations = neuron_activations.to("cpu")
             for token, activation in zip(tokens, neuron_activations):
                 activation = activation.item()
-                self.token_to_activations[token].append(activation / self.max_activation)
+                self.token_to_activations[token].append(
+                    activation / self.max_activation
+                )
 
-        self.token_to_activation = {token: np.max(activations) for token, activations in
-                                    self.token_to_activations.items()}
+        self.token_to_activation = {
+            token: np.max(activations)
+            for token, activations in self.token_to_activations.items()
+        }
 
-    def forward(self, tokens_arr: List[List[str]], return_activations=True) -> List[List[float]]:
+    def forward(
+        self, tokens_arr: List[List[str]], return_activations=True
+    ) -> List[List[float]]:
         all_activations = []
         all_firings = []
 
@@ -1916,16 +2406,23 @@ class NGramBaseline:
                 activation = activation.item()
                 if activation < self.activation_threshold:
                     continue
-                token_seq = tokens[max(0, j - self.prior_context):j + 1]
+                token_seq = tokens[max(0, j - self.prior_context) : j + 1]
                 # print(token_seq, activation)
                 self.activating_tokens.add(token)
-                self.seq_to_activations["".join(token_seq)].append(activation / self.max_activation)
+                self.seq_to_activations["".join(token_seq)].append(
+                    activation / self.max_activation
+                )
 
-        self.seq_to_activation = {seq: np.max(activations) for seq, activations in self.seq_to_activations.items()}
+        self.seq_to_activation = {
+            seq: np.max(activations)
+            for seq, activations in self.seq_to_activations.items()
+        }
 
         # pprint(self.seq_to_activation)
 
-    def forward(self, tokens_arr: List[List[str]], return_activations=True) -> List[List[float]]:
+    def forward(
+        self, tokens_arr: List[List[str]], return_activations=True
+    ) -> List[List[float]]:
         all_activations = []
         all_firings = []
 
@@ -1939,7 +2436,7 @@ class NGramBaseline:
                     firings.append(0 > self.activation_threshold)
                     continue
 
-                token_seq = tokens[max(0, j - self.prior_context):j + 1]
+                token_seq = tokens[max(0, j - self.prior_context) : j + 1]
                 activation = self.seq_to_activation.get("".join(token_seq), 0)
 
                 activations.append(activation)
@@ -1957,7 +2454,9 @@ import random
 import time
 
 
-def run_training(layers, neurons, folder_name, sample_num=None, params=None, start_neuron=None):
+def run_training(
+    layers, neurons, folder_name, sample_num=None, params=None, start_neuron=None
+):
     if params is None or not params:
         params = {
             "importance_threshold": 0.75,
@@ -1967,7 +2466,7 @@ def run_training(layers, neurons, folder_name, sample_num=None, params=None, sta
             "max_eval_size": 0.5,
             "activation_threshold": 0.5,
             "token_activation_threshold": 1,
-            "fire_threshold": 0.5
+            "fire_threshold": 0.5,
         }
     print(f"{params=}\n")
     random.seed(0)
@@ -1977,7 +2476,9 @@ def run_training(layers, neurons, folder_name, sample_num=None, params=None, sta
     if not os.path.exists(f"{base_path}/neuron_graphs/{model_name}"):
         os.mkdir(f"{base_path}/neuron_graphs/{model_name}")
 
-    neuron_store = NeuronStore(f"{base_path}/neuron_graphs/{model_name}/neuron_store.json")
+    neuron_store = NeuronStore(
+        f"{base_path}/neuron_graphs/{model_name}/neuron_store.json"
+    )
 
     folder_path = os.path.join(base_path, f"neuron_graphs/{model_name}/{folder_name}")
 
@@ -2010,8 +2511,15 @@ def run_training(layers, neurons, folder_name, sample_num=None, params=None, sta
 
             print(f"{layer=} {neuron=}")
             try:
-                stats = train_and_eval(model, layer, neuron, fast_aug, folder_name=folder_name, neuron_store=neuron_store,
-                                       **params)
+                stats = train_and_eval(
+                    model,
+                    layer,
+                    neuron,
+                    fast_aug,
+                    folder_name=folder_name,
+                    neuron_store=neuron_store,
+                    **params,
+                )
 
                 all_stats[layer][neuron] = stats
 
@@ -2021,7 +2529,8 @@ def run_training(layers, neurons, folder_name, sample_num=None, params=None, sta
                     rate = printerval / elapsed
                     remaining = (len(chosen_neuron_indices) - i) / rate / 60
                     print(
-                        f"{i} complete, batch took {elapsed / 60:.2f} mins, {rate=:.2f} neurons/s, {remaining=:.1f} mins")
+                        f"{i} complete, batch took {elapsed / 60:.2f} mins, {rate=:.2f} neurons/s, {remaining=:.1f} mins"
+                    )
                     t1 = t2
 
                     neuron_store.save()
@@ -2045,8 +2554,8 @@ if __name__ == "__main__":
     Download from the repo or scrape (with scrape.py) the activation matrix for the model and put in data/
     Set model_name to the name of the model you want to run for
     Set the parameters in the run section as desired
-    Run this file!    
-    
+    Run this file!
+
     It will create neuron graphs for the specified layers and neurons in neuron_graphs/model_name/folder_name
     It'll also save the stats for each neuron in neuron_graphs/model_name/folder_name/stats.json
     And it will save the neuron store in neuron_graphs/model_name/neuron_store.json
@@ -2058,12 +2567,17 @@ if __name__ == "__main__":
 
     # ================ Setup ================
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    print(f"Device: {device}")
     model = HookedTransformer.from_pretrained(model_name).to(device)
 
-    base_path = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__))))
+    base_path = os.path.abspath(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)))
+    )
 
     # Save the activation matrix for the model to data/
-    with open(os.path.join(base_path, f"data/activation_matrix-{model_name}.json")) as ifh:
+    with open(
+        os.path.join(base_path, f"data/activation_matrix-{model_name}.json")
+    ) as ifh:
         activation_matrix = json.load(ifh)
         activation_matrix = np.array(activation_matrix)
 
@@ -2082,7 +2596,7 @@ if __name__ == "__main__":
     # main()
 
     if not os.path.exists(f"{base_path}/neuron_graphs"):
-        os.mkdir("neuron_graphs")
+        os.mkdir(f"{base_path}/neuron_graphs")
 
     # ================ Run ================
     # Run training for the specified layers and neurons
@@ -2103,7 +2617,9 @@ if __name__ == "__main__":
         folder_name=folder_name,
         # Number of neurons to sample from each layer (None for all neurons)
         sample_num=None,
-        params=params
+        params=params,
     )
 
-    get_summary_stats(f"{base_path}/neuron_graphs/{model_name}/{folder_name}/stats.json")
+    get_summary_stats(
+        f"{base_path}/neuron_graphs/{model_name}/{folder_name}/stats.json"
+    )
