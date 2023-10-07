@@ -2603,7 +2603,7 @@ if __name__ == "__main__":
     word_tokenizer = WordTokenizer(set(), stick_tokens)
     fast_aug = FastAugmenter(aug_model, aug_tokenizer, word_tokenizer, model)
 
-    with open(f"{base_path}/data/word_to_casings.json") as ifh:
+    with open(f"{base_path}/data/word_to_casings.json", encoding="utf-8") as ifh:
         word_to_casings = json.load(ifh)
 
     # main()
