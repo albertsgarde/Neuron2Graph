@@ -1747,6 +1747,8 @@ class NeuronModel:
                 )
                 if token not in add_dict:
                     add_dict[token] = set()
+                else:
+                    add_dict[token] = set(add_dict[token])
                 add_dict[token].add(f"{self.layer}_{self.neuron}")
 
             for token, neighbour in node.children.items():
