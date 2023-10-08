@@ -41,12 +41,12 @@ def get_max_acts(model_name, layer_and_neurons):
     activations = []
     for i, neuron in enumerate(neurons):
         if i % 50 == 0:
-            print(f"\nLayer {layer}: {i} of {len(neurons)} complete")
+            print(f"\nLayer {layer}: {i} of {len(neurons)} complete", flush=True)
         try:
             activation = get_max_activations(model_name, layer, neuron, n=1)
             activations.append(activation)
         except:
-            print(f"Neuron {neuron} in layer {layer} failed")
+            print(f"Neuron {neuron} in layer {layer} failed", flush=True)
             # Use the previous activation as a hack to get around failures
             activations.append(activations[-1])
     return activations
