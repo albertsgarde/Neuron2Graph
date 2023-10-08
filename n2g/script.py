@@ -2303,8 +2303,6 @@ class NeuronModel:
         self.net.format = "svg"
         filename = "graph" if graph else "trie"
         self.net.render(f"{save_path}/{filename}", view=False)
-        self.net.format = "png"
-        self.net.render(f"{save_path}/{filename}", view=False)
         # print(self.net.source, flush=True)
 
     @staticmethod
