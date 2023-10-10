@@ -2300,9 +2300,11 @@ class NeuronModel:
             if not os.path.exists(save_path):
                 os.mkdir(save_path)
 
-        self.net.format = "svg"
+        # self.net.format = "svg"
         filename = "graph" if graph else "trie"
-        self.net.render(f"{save_path}/{filename}", view=False)
+        with open(f"{save_path}/{filename}", "w") as f:
+            f.write(self.net.source)
+        # self.net.render(f"{save_path}/{filename}", view=False)
         # print(self.net.source, flush=True)
 
     @staticmethod
