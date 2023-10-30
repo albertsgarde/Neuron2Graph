@@ -52,7 +52,7 @@ def get_max_acts(model_name, layer_and_neurons):
     return activations
 
 
-def cmd_arguments() -> Tuple[str, int, int]:
+def cmd_arguments() -> Tuple[str, int, int, bool]:
     """
     Gets model name, number of layers and neurons per layer from cmd arguments if available.
     """
@@ -61,8 +61,9 @@ def cmd_arguments() -> Tuple[str, int, int]:
     model_name = args[0] if num_arguments >= 1 else "gpt2-small"
     num_layers = int(args[1]) if num_arguments >= 2 else 24
     neurons_per_layer = int(args[2]) if num_arguments >= 3 else 4096
+    overwrite = (args[3].lower() != "false") if num_arguments >= 4 else True
 
-    return model_name, num_layers, neurons_per_layer
+    return model_name, num_layers, neurons_per_layer, overwrite
 
 
 if __name__ == "__main__":
@@ -75,7 +76,14 @@ if __name__ == "__main__":
         os.path.join(os.path.dirname(os.path.abspath(__file__)))
     )
 
-    model_name, layers, neurons = cmd_arguments()
+    model_name, layers, neurons, overwrite = cmd_arguments()
+
+    output_path = os.path.join(base_path, f"data/activation_matrix-{model_name}.json")
+
+    if not overwrite and os.path.exists(output_path):
+        print("File already exists. Exiting...")
+        sys.exit(0)
+
     # Uncomment and overwrite if you would rather specify the configuration here.
     # model_name = "gpt2-small"
     # layers = 24
@@ -88,7 +96,5 @@ if __name__ == "__main__":
 
     activation_matrix_np = np.array(activation_matrix)
 
-    with open(
-        os.path.join(base_path, f"data/activation_matrix-{model_name}.json"), "w"
-    ) as ofh:
+    with open(output_path, "w") as ofh:
         json.dump(activation_matrix, ofh, indent=2, ensure_ascii=False)
