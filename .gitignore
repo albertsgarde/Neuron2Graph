@@ -130,3 +130,7 @@ dmypy.json
 
 .idea/
 
+n2g/data/
+n2g/neuron_graphs/
+src/data/
+src/neuron_graphs/
