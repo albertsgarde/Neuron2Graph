@@ -2540,15 +2540,17 @@ def cmd_arguments() -> Tuple[str, str, List[int], int]:
     """
     args = sys.argv[1:]
     num_arguments = len(args)
-    model_name = args[0] if num_arguments >= 1 else "gpt2-small"
-    layer_ending = f"mlp.hook_{args[1]}" if num_arguments >= 2 else "mlp.hook_post"
-    layers_arg = args[2] if num_arguments >= 3 else "0"
+    if num_arguments < 4:
+        raise Exception("Not enough arguments")
+    model_name = args[0]
+    layer_ending = f"mlp.hook_{args[1]}"
+    layers_arg = args[2]
     if ":" in layers_arg:
         layer_range = layers_arg.split(":")
         layers = range(int(layer_range[0]), int(layer_range[1]))
     else:
         layers = [int(layer_index_str) for layer_index_str in layers_arg.split(",")]
-    neurons_per_layer = int(args[3]) if num_arguments >= 4 else "3072"
+    neurons_per_layer = int(args[3])
 
     return model_name, layer_ending, layers, neurons_per_layer
 
