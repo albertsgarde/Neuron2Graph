@@ -1,6 +1,8 @@
 from pprint import pprint
 import re
 import math
+import copy
+from string import punctuation
 from collections import defaultdict, namedtuple, Counter
 import json
 from typing import List, Tuple
@@ -22,15 +24,17 @@ from transformers import AutoModelForMaskedLM
 from transformers import AutoTokenizer
 from transformer_lens import HookedTransformer
 
+import nltk
+
+nltk.download("stopwords")
+from nltk.corpus import stopwords
+
 from scipy.special import softmax
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
 
 from graphviz import Digraph, escape
 from IPython.display import Image, display
-
-from .n2g import FastAugmenter, WordTokenizer
-import n2g
 
 parser = re.compile('\{"tokens": ')
 
@@ -88,8 +92,61 @@ def get_max_activations(model_name, layer, neuron, n=1):
     return activations if n > 1 else activations[0]
 
 
+class WordTokenizer:
+    """Simple tokenizer for splitting text into words"""
+
+    def __init__(self, split_tokens, stick_tokens):
+        self.split_tokens = split_tokens
+        self.stick_tokens = stick_tokens
+
+    def __call__(self, text):
+        return self.tokenize(text)
+
+    def is_split(self, char):
+        """Split on any non-alphabet chars unless excluded, and split on any specified chars"""
+        return char in self.split_tokens or (
+            not char.isalpha() and char not in self.stick_tokens
+        )
+
+    def tokenize(self, text):
+        """Tokenize text, preserving all characters"""
+        tokens = []
+        current_token = ""
+        for char in text:
+            if self.is_split(char):
+                tokens.append(current_token)
+                tokens.append(char)
+                current_token = ""
+                continue
+            current_token += char
+        tokens.append(current_token)
+        tokens = [token for token in tokens if token]
+        return tokens
+
+
 def layer_index_to_name(layer_index):
     return f"blocks.{layer_index}.{layer_ending}"
+
+
+splitter = re.compile("[\.!\\n]")
+
+
+def sentence_tokenizer(str_tokens):
+    """Split tokenized text into sentences"""
+    sentences = []
+    sentence = []
+    sentence_to_token_indices = defaultdict(list)
+    token_to_sentence_indices = {}
+
+    for i, str_token in enumerate(str_tokens):
+        sentence.append(str_token)
+        sentence_to_token_indices[len(sentences)].append(i)
+        token_to_sentence_indices[i] = len(sentences)
+        if splitter.search(str_token) is not None or i + 1 == len(str_tokens):
+            sentences.append(sentence)
+            sentence = []
+
+    return sentences, sentence_to_token_indices, token_to_sentence_indices
 
 
 def batch(arr, n=None, batch_size=None):
@@ -122,6 +179,242 @@ def batch(arr, n=None, batch_size=None):
         groups.append(group)
 
     return groups
+
+
+class FastAugmenter:
+    """Uses BERT to generate variations on input text by masking words and substituting with most likely predictions"""
+
+    def __init__(
+        self, model, model_tokenizer, word_tokenizer, neuron_model, device="cuda:0"
+    ):
+        self.model = model
+        self.model_tokenizer = model_tokenizer
+        self.stops = set(stopwords.words("english"))
+        self.punctuation_set = set(punctuation)
+        self.to_strip = " " + punctuation
+        self.word_tokenizer = word_tokenizer
+        self.device = device
+
+    def augment(
+        self,
+        text,
+        max_char_position=None,
+        exclude_stopwords=False,
+        n=5,
+        important_tokens=None,
+        **kwargs,
+    ):
+        joiner = ""
+        tokens = self.word_tokenizer(text)
+
+        new_texts = []
+        positions = []
+
+        important_tokens = {
+            token.strip(self.to_strip).lower() for token in important_tokens
+        }
+
+        seen_prompts = set()
+
+        # Gather all tokens to be substituted
+        tokens_to_sub = []
+
+        # Mask important tokens
+        masked_token_sets = []
+        masked_texts = []
+
+        masked_tokens = []
+
+        for i, token in enumerate(tokens):
+            norm_token = (
+                token.strip(self.to_strip).lower()
+                if any(c.isalpha() for c in token)
+                else token
+            )
+
+            if (
+                not token
+                or word_tokenizer.is_split(token)
+                or (exclude_stopwords and norm_token in self.stops)
+                or (important_tokens is not None and norm_token not in important_tokens)
+            ):
+                continue
+
+            # If no alphanumeric characters, we'll do a special substitution rather than using BERT
+            if not any(c.isalpha() for c in token):
+                continue
+
+            before = tokens[:i]
+            before_text = joiner.join(before)
+            position = len(before_text)
+
+            # Don't bother if we're beyond the max activating token, as these tokens have no effect on the activation
+            if max_char_position is not None and position > max_char_position:
+                break
+
+            copy_tokens = copy.deepcopy(tokens)
+            copy_tokens[i] = "[MASK]"
+            masked_token_sets.append((copy_tokens, position))
+            masked_texts.append(joiner.join(copy_tokens))
+
+            masked_tokens.append(token)
+
+        # pprint(masked_texts)
+        if len(masked_texts) == 0:
+            return [], []
+
+        inputs = self.model_tokenizer(
+            masked_texts, padding=True, return_tensors="pt"
+        ).to(self.device)
+        token_probs = softmax(
+            self.model(**inputs).logits.cpu().detach().numpy(), axis=-1
+        )
+        inputs = inputs.to("cpu")
+
+        chosen_tokens = set()
+
+        new_texts = []
+        positions = []
+
+        seen_texts = set()
+
+        for i, (masked_token_set, char_position) in enumerate(masked_token_sets):
+            mask_token_index = np.argwhere(
+                inputs["input_ids"][i] == self.model_tokenizer.mask_token_id
+            )[0, 0]
+
+            mask_token_probs = token_probs[i, mask_token_index, :]
+
+            # We negate the array before argsort to get the largest, not the smallest, logits
+            top_probs = -np.sort(-mask_token_probs).transpose()
+            top_tokens = np.argsort(-mask_token_probs).transpose()
+
+            subbed = 0
+
+            # Substitute the given token with the best predictions
+            for l, (top_token, top_prob) in enumerate(zip(top_tokens, top_probs)):
+                if top_prob < 0.00001:
+                    break
+
+                candidate_token = self.model_tokenizer.decode(top_token)
+
+                # print(candidate_token, flush=True)
+
+                # Check that the predicted token isn't the same as the token that was already there
+                normalised_candidate = (
+                    candidate_token.strip(self.to_strip).lower()
+                    if candidate_token not in self.punctuation_set
+                    else candidate_token
+                )
+                normalised_token = (
+                    token.strip(self.to_strip).lower()
+                    if token not in self.punctuation_set
+                    else token
+                )
+
+                if normalised_candidate == normalised_token or not any(
+                    c.isalpha() for c in candidate_token
+                ):
+                    continue
+
+                # Get most common casing of the word
+                most_common_casing = word_to_casings.get(
+                    candidate_token, [(candidate_token, 1)]
+                )[0][0]
+
+                original_token = masked_tokens[i]
+                # Title case normally has meaning (e.g., start of sentence, in a proper noun, etc.) so follow original token, otherwise use most common
+                best_casing = (
+                    candidate_token.title()
+                    if original_token.istitle()
+                    else most_common_casing
+                )
+
+                new_token_set = copy.deepcopy(masked_token_set)
+                # BERT uses ## to denote a tokenisation within a word, so we remove it to glue the word back together
+                masked_text = joiner.join(new_token_set)
+                new_text = masked_text.replace(
+                    self.model_tokenizer.mask_token, best_casing, 1
+                ).replace(" ##", "")
+
+                if new_text in seen_texts:
+                    continue
+
+                new_texts.append(new_text)
+                positions.append(char_position)
+                subbed += 1
+
+                if subbed >= n:
+                    break
+
+        return new_texts, positions
+
+
+def augment(
+    model,
+    layer,
+    index,
+    prompt,
+    aug,
+    max_length=1024,
+    inclusion_threshold=-0.5,
+    exclusion_threshold=-0.5,
+    n=5,
+    **kwargs,
+):
+    """Generate variations of a prompt using an augmenter"""
+    prepend_bos = True
+    tokens = model.to_tokens(prompt, prepend_bos=prepend_bos)
+    str_tokens = model.to_str_tokens(prompt, prepend_bos=prepend_bos)
+
+    # print(prompt, flush=True)
+
+    if len(tokens[0]) > max_length:
+        tokens = tokens[0, :max_length].unsqueeze(0)
+
+    logits, cache = model.run_with_cache(tokens)
+    activations = cache[layer][0, :, index]
+
+    initial_max = torch.max(activations).cpu().item()
+    initial_argmax = torch.argmax(activations).cpu().item()
+    max_char_position = len("".join(str_tokens[int(prepend_bos) : initial_argmax + 1]))
+
+    positive_prompts = [(prompt, initial_max, 1)]
+    negative_prompts = []
+
+    if n == 0:
+        return positive_prompts, negative_prompts
+
+    aug_prompts, aug_positions = aug.augment(
+        prompt, max_char_position=max_char_position, n=n, **kwargs
+    )
+    if not aug_prompts:
+        return positive_prompts, negative_prompts
+
+    aug_tokens = model.to_tokens(aug_prompts, prepend_bos=prepend_bos)
+
+    aug_logits, aug_cache = model.run_with_cache(aug_tokens)
+    all_aug_activations = aug_cache[layer][:, :, index]
+
+    for aug_prompt, char_position, aug_activations in zip(
+        aug_prompts, aug_positions, all_aug_activations
+    ):
+        aug_max = torch.max(aug_activations).cpu().item()
+        aug_argmax = torch.argmax(aug_activations).cpu().item()
+
+        # TODO implement this properly - when we mask multiple tokens, if they cross the max_char_position this will not necessarily be correct
+        if char_position < max_char_position:
+            new_str_tokens = model.to_str_tokens(aug_prompt, prepend_bos=prepend_bos)
+            aug_argmax += len(new_str_tokens) - len(str_tokens)
+
+        proportion_drop = (aug_max - initial_max) / initial_max
+
+        if proportion_drop >= inclusion_threshold:
+            positive_prompts.append((aug_prompt, aug_max, proportion_drop))
+        elif proportion_drop < exclusion_threshold:
+            negative_prompts.append((aug_prompt, aug_max, proportion_drop))
+
+    return positive_prompts, negative_prompts
 
 
 def fast_prune(
@@ -162,7 +455,7 @@ def fast_prune(
         sentences,
         sentence_to_token_indices,
         token_to_sentence_indices,
-    ) = n2g.sentence_tokenizer(str_tokens)
+    ) = sentence_tokenizer(str_tokens)
 
     # print(activation_threshold * full_initial_max, flush=True)
 
@@ -665,7 +958,7 @@ def augment_and_return(
     if base_max_act is not None:
         initial_max_act = base_max_act
 
-    positive_prompts, negative_prompts = n2g.augment(
+    positive_prompts, negative_prompts = augment(
         model,
         layer,
         neuron,
@@ -771,7 +1064,7 @@ def fast_augment_and_visualise(
         initial_max_index,
     ) = fast_measure_importance(model, layer, neuron, pruned_prompt)
 
-    positive_prompts, negative_prompts = n2g.augment(
+    positive_prompts, negative_prompts = augment(
         model,
         layer,
         neuron,
@@ -2313,14 +2606,12 @@ if __name__ == "__main__":
     aug_model = AutoModelForMaskedLM.from_pretrained(aug_model_checkpoint).to(device)
     aug_tokenizer = AutoTokenizer.from_pretrained(aug_model_checkpoint)
 
-
+    stick_tokens = {"'"}
+    word_tokenizer = WordTokenizer(set(), stick_tokens)
+    fast_aug = FastAugmenter(aug_model, aug_tokenizer, word_tokenizer, model)
 
     with open(f"{base_path}/data/word_to_casings.json", encoding="utf-8") as ifh:
         word_to_casings = json.load(ifh)
-
-    stick_tokens = {"'"}
-    word_tokenizer = WordTokenizer(set(), stick_tokens)
-    fast_aug = FastAugmenter(aug_model, aug_tokenizer, word_tokenizer, model, word_to_casings)
 
     # main()
 
