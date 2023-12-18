@@ -6,8 +6,10 @@ import requests
 from sklearn.metrics import classification_report
 from sklearn.model_selection import train_test_split
 import torch
+
+from n2g import fast_augmenter
 from .neuron_model import NeuronModel
-from . import word_tokenizer, fast_augmenter
+import word_tokenizer
 
 
 parser = re.compile('\{"tokens": ')
@@ -92,7 +94,6 @@ def fast_prune(
     skip_threshold=0,
     skip_interval=5,
     return_intermediates=False,
-    **kwargs,
 ):
     """Prune an input prompt to the shortest string that preserves x% of neuron activation on the most activating token."""
 
@@ -298,7 +299,6 @@ def fast_measure_importance(
     scale_factor=1,
     return_all=False,
     activation_threshold=0.1,
-    **kwargs,
 ):
     """Compute a measure of token importance by masking each token and measuring the drop in activation on the max activating token"""
 
@@ -420,7 +420,7 @@ def fast_measure_importance(
     )
 
 
-def evaluate(neuron_model, data, fire_threshold=0.5, **kwargs):
+def evaluate(neuron_model, data, fire_threshold=0.5):
     y = []
     y_pred = []
     y_act = []

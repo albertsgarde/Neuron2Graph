@@ -15,7 +15,7 @@ from transformers import AutoTokenizer
 from transformer_lens import HookedTransformer
 
 
-from .n2g import FastAugmenter, WordTokenizer, NeuronStore
+from .n2g import FastAugmenter, WordTokenizer, NeuronStore, train_and_eval
 
 
 def run_training(
@@ -75,7 +75,7 @@ def run_training(
 
             print(f"{layer=} {neuron=}", flush=True)
             try:
-                stats = n2g.train_and_eval(
+                stats = train_and_eval(
                     model,
                     layer,
                     neuron,

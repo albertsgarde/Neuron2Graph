@@ -14,7 +14,13 @@ class FastAugmenter:
     """Uses BERT to generate variations on input text by masking words and substituting with most likely predictions"""
 
     def __init__(
-        self, model, model_tokenizer, word_tokenizer, neuron_model, word_to_casings, device="cuda:0"
+        self,
+        model,
+        model_tokenizer,
+        word_tokenizer,
+        neuron_model,
+        word_to_casings,
+        device="cuda:0",
     ):
         self.model = model
         self.model_tokenizer = model_tokenizer
@@ -32,7 +38,6 @@ class FastAugmenter:
         exclude_stopwords=False,
         n=5,
         important_tokens=None,
-        **kwargs,
     ):
         joiner = ""
         tokens = self.word_tokenizer(text)
@@ -190,7 +195,6 @@ def augment(
     inclusion_threshold=-0.5,
     exclusion_threshold=-0.5,
     n=5,
-    **kwargs,
 ):
     """Generate variations of a prompt using an augmenter"""
     prepend_bos = True
@@ -216,7 +220,7 @@ def augment(
         return positive_prompts, negative_prompts
 
     aug_prompts, aug_positions = aug.augment(
-        prompt, max_char_position=max_char_position, n=n, **kwargs
+        prompt, max_char_position=max_char_position, n=n
     )
     if not aug_prompts:
         return positive_prompts, negative_prompts
