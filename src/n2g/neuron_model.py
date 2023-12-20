@@ -5,6 +5,8 @@ from typing import List
 
 from graphviz import Digraph, escape
 
+from n2g.neuron_store import NeuronStore
+
 
 class NeuronNode:
     def __init__(
@@ -56,10 +58,11 @@ class NeuronModel:
         self,
         layer,
         neuron,
+        neuron_store: NeuronStore,
         activation_threshold=0.1,
         importance_threshold=0.5,
         folder_name=None,
-        neuron_store=None,
+        **kwargs,
     ):
         self.layer = layer
         self.neuron = neuron

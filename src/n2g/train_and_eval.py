@@ -7,9 +7,9 @@ from sklearn.metrics import classification_report
 from sklearn.model_selection import train_test_split
 import torch
 
-from n2g import fast_augmenter
+import n2g
+from n2g.neuron_store import NeuronStore
 from .neuron_model import NeuronModel
-import word_tokenizer
 
 
 parser = re.compile('\{"tokens": ')
@@ -94,6 +94,7 @@ def fast_prune(
     skip_threshold=0,
     skip_interval=5,
     return_intermediates=False,
+    **kwargs,
 ):
     """Prune an input prompt to the shortest string that preserves x% of neuron activation on the most activating token."""
 
@@ -114,7 +115,7 @@ def fast_prune(
         sentences,
         sentence_to_token_indices,
         token_to_sentence_indices,
-    ) = word_tokenizer.sentence_tokenizer(str_tokens)
+    ) = n2g.word_tokenizer.sentence_tokenizer(str_tokens)
 
     # print(activation_threshold * full_initial_max, flush=True)
 
@@ -420,7 +421,7 @@ def fast_measure_importance(
     )
 
 
-def evaluate(neuron_model, data, fire_threshold=0.5):
+def evaluate(neuron_model, data, fire_threshold=0.5, **kwargs):
     y = []
     y_pred = []
     y_act = []
@@ -509,7 +510,7 @@ def augment_and_return(
     if base_max_act is not None:
         initial_max_act = base_max_act
 
-    positive_prompts, negative_prompts = fast_augmenter.augment(
+    positive_prompts, negative_prompts = n2g.fast_augmenter.augment(
         model,
         layer,
         neuron,
@@ -613,6 +614,7 @@ def train_and_eval(
     model_name: str,
     activation_matrix,
     layer_ending,
+    neuron_store: NeuronStore,
     train_proportion=0.5,
     max_train_size=10,
     max_eval_size=20,
@@ -689,7 +691,7 @@ def train_and_eval(
             )
             all_info.append(info)
 
-    neuron_model = NeuronModel(layer_num, neuron)
+    neuron_model = NeuronModel(layer_num, neuron, neuron_store, **kwargs)
     paths = neuron_model.fit(all_info, base_path, model_name)
 
     print("Fitted model", flush=True)

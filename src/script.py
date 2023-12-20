@@ -14,8 +14,8 @@ from transformers import AutoModelForMaskedLM
 from transformers import AutoTokenizer
 from transformer_lens import HookedTransformer
 
-
-from .n2g import FastAugmenter, WordTokenizer, NeuronStore, train_and_eval
+import n2g
+from n2g import FastAugmenter, WordTokenizer, NeuronStore, train_and_eval
 
 
 def run_training(
@@ -84,8 +84,7 @@ def run_training(
                     model_name,
                     activation_matrix,
                     layer_ending,
-                    folder_name=folder_name,
-                    neuron_store=neuron_store,
+                    neuron_store,
                     **params,
                 )
 

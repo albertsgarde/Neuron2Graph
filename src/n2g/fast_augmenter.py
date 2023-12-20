@@ -5,6 +5,8 @@ from nltk.corpus import stopwords
 from string import punctuation
 import copy
 
+import scipy.special
+
 import torch.nn.functional as F
 import torch
 import numpy as np
@@ -29,7 +31,7 @@ class FastAugmenter:
         self.to_strip = " " + punctuation
         self.word_tokenizer = word_tokenizer
         self.device = device
-        self.word_to_casings
+        self.word_to_casings = word_to_casings
 
     def augment(
         self,
@@ -38,6 +40,7 @@ class FastAugmenter:
         exclude_stopwords=False,
         n=5,
         important_tokens=None,
+        **kwargs,
     ):
         joiner = ""
         tokens = self.word_tokenizer(text)
@@ -101,7 +104,7 @@ class FastAugmenter:
         inputs = self.model_tokenizer(
             masked_texts, padding=True, return_tensors="pt"
         ).to(self.device)
-        token_probs = F.softmax(
+        token_probs = scipy.special.softmax(
             self.model(**inputs).logits.cpu().detach().numpy(), axis=-1
         )
         inputs = inputs.to("cpu")
@@ -195,6 +198,7 @@ def augment(
     inclusion_threshold=-0.5,
     exclusion_threshold=-0.5,
     n=5,
+    **kwargs,
 ):
     """Generate variations of a prompt using an augmenter"""
     prepend_bos = True
@@ -220,7 +224,7 @@ def augment(
         return positive_prompts, negative_prompts
 
     aug_prompts, aug_positions = aug.augment(
-        prompt, max_char_position=max_char_position, n=n
+        prompt, max_char_position=max_char_position, n=n, **kwargs
     )
     if not aug_prompts:
         return positive_prompts, negative_prompts
