@@ -129,7 +129,7 @@ def cmd_arguments() -> Tuple[str, str, List[int], int]:
     layers_arg = args[2]
     if ":" in layers_arg:
         layer_range = layers_arg.split(":")
-        layers = range(int(layer_range[0]), int(layer_range[1]))
+        layers = list(range(int(layer_range[0]), int(layer_range[1])))
     else:
         layers = [int(layer_index_str) for layer_index_str in layers_arg.split(",")]
     neurons_per_layer = int(args[3])

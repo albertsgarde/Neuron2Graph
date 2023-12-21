@@ -1,7 +1,9 @@
 import json
 import math
 import re
+from typing import Any, List, Tuple
 import numpy as np
+from numpy.typing import NDArray
 import requests
 from sklearn.metrics import classification_report
 from sklearn.model_selection import train_test_split
@@ -289,59 +291,34 @@ def fast_prune(
 
 def fast_measure_importance(
     model,
-    layer,
-    neuron,
+    layer: int,
+    neuron: int,
     prompt,
     initial_argmax=None,
-    max_length=1024,
+    max_length: int = 1024,
     max_activation=None,
     masking_token=1,
-    threshold=0.8,
+    threshold: float = 0.8,
     scale_factor=1,
-    return_all=False,
-    activation_threshold=0.1,
-):
+    activation_threshold: float = 0.1,
+) -> Tuple[NDArray[Any], float, List[str], List[List[str | float]], int]:
     """Compute a measure of token importance by masking each token and measuring the drop in activation on the max activating token"""
 
     prepend_bos = True
     tokens = model.to_tokens(prompt, prepend_bos=prepend_bos)
-    str_tokens = model.to_str_tokens(prompt, prepend_bos=prepend_bos)
+    str_tokens: List[str] = model.to_str_tokens(prompt, prepend_bos=prepend_bos)
 
     if len(tokens[0]) > max_length:
         tokens = tokens[0, :max_length].unsqueeze(0)
 
-    # logits, cache = model.run_with_cache(tokens)
-
-    # print(tokens_and_activations, flush=True)
-
-    importances_matrix = []
+    importances_matrix: List[NDArray[Any]] = []
 
     shortest_successful_prompt = None
-    # cutoff = 50
 
     masked_prompts = tokens.repeat(len(tokens[0]) + 1, 1)
 
-    # print(f"{len(masked_prompts)=}, {initial_argmax=}, {starting_point=}", flush=True)
-
     for i in range(1, len(masked_prompts)):
         masked_prompts[i, i - 1] = masking_token
-
-    # for i, str_token in enumerate(str_tokens):
-    #   if i >= cutoff:
-    #     break
-
-    #   masked_tokens = tokens
-
-    #   if i >= len(masked_tokens[0]):
-    #     continue
-
-    #   token_to_mask = copy.deepcopy(tokens[0, i])
-    #   masked_tokens[0, i] = masking_token
-
-    #   masked_prompts.append(masked_tokens[0])
-    #   tokens[0, i] = token_to_mask
-
-    # pprint(masked_prompts)
 
     logits, cache = model.run_with_cache(masked_prompts)
     all_masked_activations = cache[layer][1:, :, neuron].cpu()
@@ -354,66 +331,48 @@ def fast_measure_importance(
         # This could be wrong
         initial_argmax = min(initial_argmax, len(activations) - 1)
 
-    # print(activations, flush=True)
-    # print(activation_threshold, flush=True)
-    # activation_indexes = [i for i, activation in enumerate(activations) if activation * scale_factor / max_activation > activation_threshold]
-    # print(activation_indexes, flush=True)
-    # final_activating = initial_argmax if len(activation_indexes) == 0 else activation_indexes[-1]
-
-    initial_max = activations[initial_argmax].cpu().item()
+    initial_max: float = activations[initial_argmax].cpu().item()
 
     if max_activation is None:
         max_activation = initial_max
     scale = min(1, initial_max / max_activation)
 
-    # print("scale_factor measure_importance", scale_factor, flush=True)
-
-    tokens_and_activations = [
+    tokens_and_activations: List[List[str | float]] = [
         [str_token, round(activation.cpu().item() * scale_factor / max_activation, 3)]
         for str_token, activation in zip(str_tokens, activations)
     ]
-    important_tokens = []
-    tokens_and_importances = [[str_token, 0] for str_token in str_tokens]
+    important_tokens: List[str] = []
+    tokens_and_importances: List[Tuple[str, float]] = [
+        (str_token, 0) for str_token in str_tokens
+    ]
 
     for i, masked_activations in enumerate(all_masked_activations):
-        if return_all:
-            # Get importance of the given token for all tokens
-            importances_row = []
-            for j, activation in enumerate(masked_activations):
-                activation = activation.cpu().item()
-                normalised_activation = 1 - (activation / activations[j].cpu().item())
-                importances_row.append((str_tokens[j], normalised_activation))
+        # Get importance of the given token for all tokens
+        importances_row = []
+        for j, activation in enumerate(masked_activations):
+            activation = activation.cpu().item()
+            normalised_activation: float = 1 - (
+                activation / activations[j].cpu().item()
+            )
+            importances_row.append((str_tokens[j], normalised_activation))
 
-            # for j, str_token in enumerate(str_tokens[cutoff:]):
-            #   importances_row.append((str_token, 0))
+        # for j, str_token in enumerate(str_tokens[cutoff:]):
+        #   importances_row.append((str_token, 0))
 
-            # print("importances_row", importances_row, flush=True)
-            importances_matrix.append(np.array(importances_row))
+        # print("importances_row", importances_row, flush=True)
+        importances_matrix.append(np.array(importances_row))
 
         masked_max = masked_activations[initial_argmax].cpu().item()
         normalised_activation = 1 - (masked_max / initial_max)
 
-        str_token = tokens_and_importances[i][0]
-        tokens_and_importances[i][1] = normalised_activation
+        str_token, _ = tokens_and_importances[i]
+        tokens_and_importances[i] = str_token, normalised_activation
         if normalised_activation >= threshold and str_token != "<|endoftext|>":
             important_tokens.append(str_token)
 
-    # for i, str_token in enumerate(str_tokens[cutoff:]):
-    #   tokens_and_importances.append((str_token, 0))
-
-    if return_all:
-        # Flip so we have the importance of all tokens for a given token
-        importances_matrix = np.array(importances_matrix)
-        return (
-            importances_matrix,
-            initial_max,
-            important_tokens,
-            tokens_and_activations,
-            initial_argmax,
-        )
-
+    # Flip so we have the importance of all tokens for a given token
     return (
-        tokens_and_importances,
+        np.array(importances_matrix),
         initial_max,
         important_tokens,
         tokens_and_activations,
@@ -421,7 +380,7 @@ def fast_measure_importance(
     )
 
 
-def evaluate(neuron_model, data, fire_threshold=0.5, **kwargs):
+def evaluate(neuron_model, data, fire_threshold: float = 0.5, **kwargs):
     y = []
     y_pred = []
     y_act = []
@@ -489,8 +448,8 @@ def augment_and_return(
     use_index=False,
     scale_factor=1,
     **kwargs,
-):
-    info = []
+) -> List[Tuple[NDArray[Any], List[List[str | float]], int]]:
+    info: List[Tuple[NDArray[Any], List[List[str | float]], int]] = []
     (
         importances_matrix,
         initial_max_act,
@@ -504,7 +463,6 @@ def augment_and_return(
         pruned_prompt,
         max_activation=base_max_act,
         scale_factor=scale_factor,
-        return_all=True,
     )
 
     if base_max_act is not None:
@@ -546,7 +504,6 @@ def augment_and_return(
                 max_activation=initial_max_act,
                 initial_argmax=initial_max_index,
                 scale_factor=scale_factor,
-                return_all=True,
             )
         else:
             (
@@ -562,7 +519,6 @@ def augment_and_return(
                 prompt,
                 max_activation=initial_max_act,
                 scale_factor=scale_factor,
-                return_all=True,
             )
         info.append((importances_matrix, tokens_and_activations, max_index))
 
@@ -582,7 +538,6 @@ def augment_and_return(
                 max_activation=initial_max_act,
                 initial_argmax=initial_max_index,
                 scale_factor=scale_factor,
-                return_all=True,
             )
         else:
             (
@@ -598,7 +553,6 @@ def augment_and_return(
                 prompt,
                 max_activation=initial_max_act,
                 scale_factor=scale_factor,
-                return_all=True,
             )
         info.append((importances_matrix, tokens_and_activations, max_index))
 
@@ -643,13 +597,10 @@ def train_and_eval(
         test_snippets = [
             snippet for i, snippet in enumerate(snippets) if i not in train_indexes
         ]
-    # train_data, test_data = train_test_split(data, train_size=train_proportion, random_state=0)
 
-    # train_data_snippets = ["".join(tokens) for tokens, activations in train_data if any(activation > fire_threshold for activation in activations)][:max_train_size]
-    train_data_snippets = []
-    all_train_snippets = train_snippets + train_data_snippets
+    all_train_snippets = train_snippets
 
-    all_info = []
+    all_info: List[List[Tuple[NDArray[Any], List[List[str | float]], int]]] = []
     for i, snippet in enumerate(all_train_snippets):
         # if i % 10 == 0:
         print(f"Processing {i + 1} of {len(all_train_snippets)}", flush=True)

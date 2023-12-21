@@ -1,7 +1,9 @@
 from collections import Counter, defaultdict, namedtuple
 import json
 import os
-from typing import Any, List, NamedTuple
+from typing import Any, List, NamedTuple, Optional, Set, Tuple
+
+from numpy.typing import NDArray
 
 from graphviz import Digraph, escape
 
@@ -41,10 +43,10 @@ class NeuronNode:
     def __repr__(self):
         return f"ID: {self.id_}, Value: {json.dumps(self.value)}"
 
-    def paths(self):
+    def paths(self) -> List[List[Element]]:
         if not self.children:
             return [[self.value]]  # one path: only contains self.value
-        paths = []
+        paths: List[List[Element]] = []
         for child_token, child_tuple in self.children.items():
             child_node, _ = child_tuple
             for path in child_node.paths():
@@ -53,7 +55,12 @@ class NeuronNode:
 
 
 class NeuronEdge:
-    def __init__(self, weight=0, parent=None, child=None):
+    def __init__(
+        self,
+        weight=0,
+        parent: Optional[NeuronNode] = None,
+        child: Optional[NeuronNode] = None,
+    ):
         self.weight = weight
         self.parent = parent
         self.child = child
@@ -67,8 +74,8 @@ class NeuronEdge:
 class NeuronModel:
     def __init__(
         self,
-        layer,
-        neuron,
+        layer: int,
+        neuron: int,
         neuron_store: NeuronStore,
         activation_threshold=0.1,
         importance_threshold=0.5,
@@ -133,7 +140,12 @@ class NeuronModel:
     def __call__(self, tokens_arr: List[List[str]]) -> List[List[float]]:
         return self.forward(tokens_arr)
 
-    def fit(self, data, base_path: str, model_name: str):
+    def fit(
+        self,
+        data: List[List[Tuple[NDArray[Any], List[List[str | float]], int]]],
+        base_path: str,
+        model_name: str,
+    ):
         for example_data in data:
             for j, info in enumerate(example_data):
                 if j == 0:
@@ -199,7 +211,9 @@ class NeuronModel:
         )
         return normalised_token
 
-    def make_line(self, info, important_index_sets=None):
+    def make_line(
+        self, info: Tuple[NDArray[Any], List[List[str|float]], int], important_index_sets: Optional[List[Set[Any]]] = None
+    ) -> Tuple[List[List[Element]], List[Set[Any]]]:
         if important_index_sets is None:
             important_index_sets = []
             create_indices = True
