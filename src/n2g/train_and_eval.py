@@ -649,22 +649,11 @@ def train_and_eval(
 
     max_test_data = []
     for snippet in test_snippets:
-        # pruned_prompt, _ = prune(model, layer, neuron, snippet, **kwargs)
-        # if pruned_prompt is None:
-        #   continue
         tokens = model.to_tokens(snippet, prepend_bos=True)
         str_tokens = model.to_str_tokens(snippet, prepend_bos=True)
         logits, cache = model.run_with_cache(tokens)
         activations = cache[layer][0, :, neuron].cpu()
         max_test_data.append((str_tokens, activations / base_max_act))
-
-    # pprint(max_test_data[0])
-    # print("\n\n", flush=True)
-    # pprint(test_data[0])
-
-    # print("Evaluation data", flush=True)
-    # test_data = test_data[:max_eval_size]
-    # evaluate(neuron_model, test_data, fire_threshold=fire_threshold, **kwargs)
 
     print("Max Activating Evaluation Data", flush=True)
     try:

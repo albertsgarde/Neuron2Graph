@@ -18,9 +18,7 @@ import n2g
 from n2g import FastAugmenter, WordTokenizer, NeuronStore, train_and_eval
 
 
-def run_training(
-    layers, neurons, folder_name, sample_num=None, params=None, start_neuron=None
-):
+def run_training(layers, neurons, sample_num=None, params=None, start_neuron=None):
     if params is None or not params:
         params = {
             "importance_threshold": 0.75,
@@ -44,7 +42,7 @@ def run_training(
         f"{base_path}/neuron_graphs/{model_name}/neuron_store.json"
     )
 
-    folder_path = os.path.join(base_path, f"neuron_graphs/{model_name}/{folder_name}")
+    folder_path = os.path.join(base_path, f"neuron_graphs/{model_name}")
 
     if not os.path.exists(folder_path):
         print("Making", folder_path, flush=True)
@@ -205,8 +203,6 @@ if __name__ == "__main__":
     # ================ Run ================
     # Run training for the specified layers and neurons
 
-    folder_name = "layer_0"
-
     # Override params as desired - sensible defaults are set in run_training
     params = {}
 
@@ -217,13 +213,9 @@ if __name__ == "__main__":
         neurons=neurons_per_layer,
         # Neuron to start at (useful for resuming - None to start at 0)
         start_neuron=None,
-        # Folder to save results in
-        folder_name=folder_name,
         # Number of neurons to sample from each layer (None for all neurons)
         sample_num=None,
         params=params,
     )
 
-    n2g.get_summary_stats(
-        f"{base_path}/neuron_graphs/{model_name}/{folder_name}/stats.json"
-    )
+    n2g.get_summary_stats(f"{base_path}/neuron_graphs/{model_name}/stats.json")

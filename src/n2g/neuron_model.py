@@ -212,7 +212,9 @@ class NeuronModel:
         return normalised_token
 
     def make_line(
-        self, info: Tuple[NDArray[Any], List[List[str|float]], int], important_index_sets: Optional[List[Set[Any]]] = None
+        self,
+        info: Tuple[NDArray[Any], List[List[str | float]], int],
+        important_index_sets: Optional[List[Set[Any]]] = None,
     ) -> Tuple[List[List[Element]], List[Set[Any]]]:
         if important_index_sets is None:
             important_index_sets = []
@@ -606,15 +608,13 @@ class NeuronModel:
         if self.folder_name is not None:
             path_parts.append(self.folder_name)
 
-        path_parts.append(f"{self.layer}_{self.neuron}")
-
         save_path = base_path
         for path_part in path_parts:
             save_path += f"/{path_part}"
             if not os.path.exists(save_path):
                 os.mkdir(save_path)
 
-        filename = "graph" if graph else "trie"
+        filename = f"{self.layer}_{self.neuron}"
         with open(f"{save_path}/{filename}", "w") as f:
             f.write(self.net.source)
 
