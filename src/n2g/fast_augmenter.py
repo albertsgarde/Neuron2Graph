@@ -1,21 +1,21 @@
 from typing import Dict, List, Set, Tuple
 import typing
-import nltk
 
 from n2g.word_tokenizer import WordTokenizer
 
+import nltk  # type: ignore
+
 nltk.download("stopwords")
-from nltk.corpus import stopwords
+from nltk.corpus import stopwords  # type: ignore
 from string import punctuation
 import copy
 
-import scipy.special
-
 import torch
+import torch.nn.functional as F
 import numpy as np
 
 from transformer_lens import HookedTransformer
-from transformers import AutoModelForMaskedLM, AutoTokenizer
+from transformers import AutoModelForMaskedLM, AutoTokenizer  # type: ignore
 
 
 class FastAugmenter:
@@ -100,8 +100,8 @@ class FastAugmenter:
         inputs = self.model_tokenizer(
             masked_texts, padding=True, return_tensors="pt"
         ).to(self.device)
-        token_probs = scipy.special.softmax(
-            self.model(**inputs).logits.cpu().detach().numpy(), axis=-1
+        token_probs = (
+            F.softmax(self.model(**inputs).logits, dim=-1).cpu().detach().numpy()
         )
         inputs = inputs.to("cpu")
 
