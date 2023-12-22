@@ -1,4 +1,8 @@
+from typing import Dict, List, Set, Tuple
+import typing
 import nltk
+
+from n2g.word_tokenizer import WordTokenizer
 
 nltk.download("stopwords")
 from nltk.corpus import stopwords
@@ -7,9 +11,11 @@ import copy
 
 import scipy.special
 
-import torch.nn.functional as F
 import torch
 import numpy as np
+
+from transformer_lens import HookedTransformer
+from transformers import AutoModelForMaskedLM, AutoTokenizer
 
 
 class FastAugmenter:
@@ -17,12 +23,11 @@ class FastAugmenter:
 
     def __init__(
         self,
-        model,
-        model_tokenizer,
-        word_tokenizer,
-        neuron_model,
-        word_to_casings,
-        device="cuda:0",
+        model: AutoModelForMaskedLM,
+        model_tokenizer: AutoTokenizer,
+        word_tokenizer: WordTokenizer,
+        word_to_casings: Dict[str, List[Tuple[str, int]]],
+        device: str = "cuda:0",
     ):
         self.model = model
         self.model_tokenizer = model_tokenizer
@@ -35,27 +40,18 @@ class FastAugmenter:
 
     def augment(
         self,
-        text,
-        max_char_position=None,
-        exclude_stopwords=False,
-        n=5,
-        important_tokens=None,
-        **kwargs,
-    ):
+        text: str,
+        max_char_position: int,
+        important_tokens: Set[str],
+        exclude_stopwords: bool = False,
+        n: int = 5,
+    ) -> Tuple[List[str], List[int]]:
         joiner = ""
         tokens = self.word_tokenizer(text)
-
-        new_texts = []
-        positions = []
 
         important_tokens = {
             token.strip(self.to_strip).lower() for token in important_tokens
         }
-
-        seen_prompts = set()
-
-        # Gather all tokens to be substituted
-        tokens_to_sub = []
 
         # Mask important tokens
         masked_token_sets = []
@@ -109,12 +105,8 @@ class FastAugmenter:
         )
         inputs = inputs.to("cpu")
 
-        chosen_tokens = set()
-
         new_texts = []
         positions = []
-
-        seen_texts = set()
 
         for i, (masked_token_set, char_position) in enumerate(masked_token_sets):
             mask_token_index = np.argwhere(
@@ -135,8 +127,6 @@ class FastAugmenter:
                     break
 
                 candidate_token = self.model_tokenizer.decode(top_token)
-
-                # print(candidate_token, flush=True)
 
                 # Check that the predicted token isn't the same as the token that was already there
                 normalised_candidate = (
@@ -175,9 +165,6 @@ class FastAugmenter:
                     self.model_tokenizer.mask_token, best_casing, 1
                 ).replace(" ##", "")
 
-                if new_text in seen_texts:
-                    continue
-
                 new_texts.append(new_text)
                 positions.append(char_position)
                 subbed += 1
@@ -189,23 +176,25 @@ class FastAugmenter:
 
 
 def augment(
-    model,
-    layer,
-    index,
-    prompt,
-    aug,
-    max_length=1024,
-    inclusion_threshold=-0.5,
-    exclusion_threshold=-0.5,
-    n=5,
+    model: HookedTransformer,
+    layer: int,
+    index: int,
+    prompt: str,
+    aug: FastAugmenter,
+    important_tokens: Set[str],
+    max_length: int = 1024,
+    inclusion_threshold: float = -0.5,
+    exclusion_threshold: float = -0.5,
+    n: int = 5,
+    exclude_stopwords: bool = False,
     **kwargs,
-):
+) -> Tuple[List[Tuple[str, float, float]], List[Tuple[str, float, float]]]:
     """Generate variations of a prompt using an augmenter"""
     prepend_bos = True
     tokens = model.to_tokens(prompt, prepend_bos=prepend_bos)
-    str_tokens = model.to_str_tokens(prompt, prepend_bos=prepend_bos)
-
-    # print(prompt, flush=True)
+    str_tokens = typing.cast(
+        List[str], model.to_str_tokens(prompt, prepend_bos=prepend_bos)
+    )
 
     if len(tokens[0]) > max_length:
         tokens = tokens[0, :max_length].unsqueeze(0)
@@ -213,18 +202,22 @@ def augment(
     logits, cache = model.run_with_cache(tokens)
     activations = cache[layer][0, :, index]
 
-    initial_max = torch.max(activations).cpu().item()
-    initial_argmax = torch.argmax(activations).cpu().item()
+    initial_max: float = torch.max(activations).cpu().item()
+    initial_argmax = typing.cast(int, torch.argmax(activations).cpu().item())
     max_char_position = len("".join(str_tokens[int(prepend_bos) : initial_argmax + 1]))
 
-    positive_prompts = [(prompt, initial_max, 1)]
-    negative_prompts = []
+    positive_prompts: List[Tuple[str, float, float]] = [(prompt, initial_max, 1.0)]
+    negative_prompts: List[Tuple[str, float, float]] = []
 
     if n == 0:
         return positive_prompts, negative_prompts
 
     aug_prompts, aug_positions = aug.augment(
-        prompt, max_char_position=max_char_position, n=n, **kwargs
+        prompt,
+        max_char_position=max_char_position,
+        n=n,
+        important_tokens=important_tokens,
+        exclude_stopwords=exclude_stopwords,
     )
     if not aug_prompts:
         return positive_prompts, negative_prompts
@@ -237,15 +230,15 @@ def augment(
     for aug_prompt, char_position, aug_activations in zip(
         aug_prompts, aug_positions, all_aug_activations
     ):
-        aug_max = torch.max(aug_activations).cpu().item()
-        aug_argmax = torch.argmax(aug_activations).cpu().item()
+        aug_max: float = torch.max(aug_activations).cpu().item()
+        aug_argmax = typing.cast(int, torch.argmax(aug_activations).cpu().item())
 
         # TODO implement this properly - when we mask multiple tokens, if they cross the max_char_position this will not necessarily be correct
         if char_position < max_char_position:
             new_str_tokens = model.to_str_tokens(aug_prompt, prepend_bos=prepend_bos)
             aug_argmax += len(new_str_tokens) - len(str_tokens)
 
-        proportion_drop = (aug_max - initial_max) / initial_max
+        proportion_drop: float = (aug_max - initial_max) / initial_max
 
         if proportion_drop >= inclusion_threshold:
             positive_prompts.append((aug_prompt, aug_max, proportion_drop))

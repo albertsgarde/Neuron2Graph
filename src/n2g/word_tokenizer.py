@@ -1,5 +1,6 @@
 import re
 from collections import defaultdict
+from typing import Dict, List, Tuple
 
 
 class WordTokenizer:
@@ -9,16 +10,16 @@ class WordTokenizer:
         self.split_tokens = split_tokens
         self.stick_tokens = stick_tokens
 
-    def __call__(self, text):
+    def __call__(self, text: str) -> List[str]:
         return self.tokenize(text)
 
-    def is_split(self, char):
+    def is_split(self, char: str) -> bool:
         """Split on any non-alphabet chars unless excluded, and split on any specified chars"""
         return char in self.split_tokens or (
             not char.isalpha() and char not in self.stick_tokens
         )
 
-    def tokenize(self, text):
+    def tokenize(self, text: str) -> List[str]:
         """Tokenize text, preserving all characters"""
         tokens = []
         current_token = ""
@@ -37,12 +38,14 @@ class WordTokenizer:
 splitter = re.compile("[\.!\\n]")
 
 
-def sentence_tokenizer(str_tokens):
+def sentence_tokenizer(
+    str_tokens: List[str],
+) -> Tuple[List[List[str]], Dict[int, List[int]], Dict[int, int]]:
     """Split tokenized text into sentences"""
-    sentences = []
-    sentence = []
-    sentence_to_token_indices = defaultdict(list)
-    token_to_sentence_indices = {}
+    sentences: List[List[str]] = []
+    sentence: List[str] = []
+    sentence_to_token_indices: Dict[int, List[int]] = defaultdict(list)
+    token_to_sentence_indices: Dict[int, int] = {}
 
     for i, str_token in enumerate(str_tokens):
         sentence.append(str_token)

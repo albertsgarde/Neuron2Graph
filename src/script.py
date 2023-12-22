@@ -191,9 +191,7 @@ if __name__ == "__main__":
 
     stick_tokens = {"'"}
     word_tokenizer = WordTokenizer(set(), stick_tokens)
-    fast_aug = FastAugmenter(
-        aug_model, aug_tokenizer, word_tokenizer, model, word_to_casings
-    )
+    fast_aug = FastAugmenter(aug_model, aug_tokenizer, word_tokenizer, word_to_casings)
 
     # main()
 
