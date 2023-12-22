@@ -393,7 +393,7 @@ def evaluate(neuron_model, data, fire_threshold: float = 0.5, **kwargs):
         start = max(0, non_zero_indices[0] - 10)
         end = min(len(prompt_tokens) - 1, non_zero_indices[-1] + 10)
         pred_activations = neuron_model.forward(
-            [prompt_tokens], return_activations=True
+            [prompt_tokens]
         )[0]
 
         y_act.extend(activations)

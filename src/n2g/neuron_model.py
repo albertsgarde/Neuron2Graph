@@ -1,11 +1,11 @@
 from collections import Counter, defaultdict, namedtuple
 import json
 import os
-from typing import Any, List, NamedTuple, Optional, Set, Tuple
+from typing import Any, Dict, List, NamedTuple, Optional, Set, Tuple
 
 from numpy.typing import NDArray
 
-from graphviz import Digraph, escape
+from graphviz import Digraph, escape  # type: ignore
 
 from n2g.neuron_store import NeuronStore
 
@@ -27,17 +27,14 @@ class NeuronNode:
         id_: int,
         value: Element,
         depth: int,
-        children=None,
         important: bool = False,
         activator: bool = False,
     ):
         if value is None:
             value = {}
-        if children is None:
-            children = {}
+        self.children = {}
         self.id_ = id_
         self.value = value
-        self.children = children
         self.depth = depth
 
     def __repr__(self):
@@ -77,9 +74,9 @@ class NeuronModel:
         layer: int,
         neuron: int,
         neuron_store: NeuronStore,
-        activation_threshold=0.1,
-        importance_threshold=0.5,
-        folder_name=None,
+        activation_threshold: float = 0.1,
+        importance_threshold: float = 0.5,
+        folder_name: Optional[str] = None,
         **kwargs,
     ):
         self.layer = layer
@@ -139,6 +136,60 @@ class NeuronModel:
 
     def __call__(self, tokens_arr: List[List[str]]) -> List[List[float]]:
         return self.forward(tokens_arr)
+
+    def add(
+        self,
+        start_tuple: Tuple[NeuronNode, NeuronEdge],
+        line: List[Element],
+        graph: bool = True,
+    ):
+        current_tuple = start_tuple
+        important_count = 0
+
+        start_depth = current_tuple[0].depth
+
+        for i, element in enumerate(line):
+            if element is None and i > 0:
+                break
+
+            if element.ignore and graph:
+                continue
+
+            # Normalise token
+            element = element._replace(token=self.normalise(element.token))
+
+            if graph:
+                # Set end value as we don't have end nodes in the graph
+                # The current node is an end if there's only one more node, as that will be the end node that we don't add
+                is_end = i == len(line) - 2
+                element = element._replace(is_end=is_end)
+
+            important_count += 1
+
+            current_node, current_edge = current_tuple
+
+            if not current_node.value.ignore:
+                prev_important_node = current_node
+
+            if element.token in current_node.children:
+                current_tuple = current_node.children[element.token]
+                continue
+
+            weight = 0
+
+            depth = start_depth + important_count
+            new_node = NeuronNode(self.node_count, element, depth)
+            new_tuple = (new_node, NeuronEdge(weight, current_node, new_node))
+
+            self.max_depth = depth if depth > self.max_depth else self.max_depth
+
+            current_node.children[element.token] = new_tuple
+
+            current_tuple = new_tuple
+
+            self.node_count += 1
+
+        return current_tuple
 
     def fit(
         self,
@@ -200,7 +251,7 @@ class NeuronModel:
                     queue.append(neighbour)
 
     @staticmethod
-    def normalise(token):
+    def normalise(token: str):
         normalised_token = (
             token.lower() if token.istitle() and len(token) > 1 else token
         )
@@ -306,56 +357,6 @@ class NeuronModel:
 
         return all_lines, important_index_sets
 
-    def add(self, start_tuple, line, graph=True):
-        current_tuple = start_tuple
-        previous_element = None
-        important_count = 0
-
-        start_depth = current_tuple[0].depth
-
-        for i, element in enumerate(line):
-            if element is None and i > 0:
-                break
-
-            if element.ignore and graph:
-                continue
-
-            # Normalise token
-            element = element._replace(token=self.normalise(element.token))
-
-            if graph:
-                # Set end value as we don't have end nodes in the graph
-                # The current node is an end if there's only one more node, as that will be the end node that we don't add
-                is_end = i == len(line) - 2
-                element = element._replace(is_end=is_end)
-
-            important_count += 1
-
-            current_node, current_edge = current_tuple
-
-            if not current_node.value.ignore:
-                prev_important_node = current_node
-
-            if element.token in current_node.children:
-                current_tuple = current_node.children[element.token]
-                continue
-
-            weight = 0
-
-            depth = start_depth + important_count
-            new_node = NeuronNode(self.node_count, element, depth, {})
-            new_tuple = (new_node, NeuronEdge(weight, current_node, new_node))
-
-            self.max_depth = depth if depth > self.max_depth else self.max_depth
-
-            current_node.children[element.token] = new_tuple
-
-            current_tuple = new_tuple
-
-            self.node_count += 1
-
-        return current_tuple
-
     def merge_ignores(self):
         """
         Where a set of children contain an ignore token, merge the other nodes into it:
@@ -450,9 +451,7 @@ class NeuronModel:
         # Return the activation on the longest sequence
         return activations[-1]
 
-    def forward(
-        self, tokens_arr: List[List[str]], return_activations=True
-    ) -> List[List[float]]:
+    def forward(self, tokens_arr: List[List[str]]) -> List[List[float]]:
         if isinstance(tokens_arr[0], str):
             raise ValueError(f"tokens_arr must be of type List[List[str]]")
 
@@ -475,29 +474,37 @@ class NeuronModel:
             all_activations.append(activations)
             all_firings.append(firings)
 
-        if return_activations:
-            return all_activations
-        return all_firings
+        return all_activations
 
-    def build(self, start_node, base_path: str, model_name: str, graph=True):
+    @staticmethod
+    def clamp(arr: Tuple[int, int, int]):
+        return [max(0, min(x, 255)) for x in arr]
+
+    def build(
+        self,
+        start_node: Tuple[NeuronNode, NeuronEdge],
+        base_path: str,
+        model_name: str,
+        graph: bool = True,
+    ):
         """Build a graph to visualise"""
         visited = set()  # List to keep track of visited nodes.
-        queue = []  # Initialize a queue
+        queue: List[Tuple[NeuronNode, NeuronEdge]] = []  # Initialize a queue
 
         visited.add(start_node[0].id_)
         queue.append(start_node)
 
         zero_width = "\u200b"
 
-        tokens_by_layer = {}
+        tokens_by_layer: Dict[int, Dict[str, str]] = {}
         node_id_to_graph_id = {}
-        token_by_layer_count = defaultdict(Counter)
+        token_by_layer_count: Dict[int, Counter[str]] = defaultdict(Counter)
         added_ids = set()
         node_count = 0
         depth_to_subgraph = {}
         added_edges = set()
 
-        node_edge_tuples = []
+        node_edge_tuples: List[Tuple[NeuronNode, NeuronEdge]] = []
 
         adjust = lambda x, y: (x - y) / (1 - y)
 
@@ -617,7 +624,3 @@ class NeuronModel:
         filename = f"{self.layer}_{self.neuron}"
         with open(f"{save_path}/{filename}", "w") as f:
             f.write(self.net.source)
-
-    @staticmethod
-    def clamp(arr):
-        return [max(0, min(x, 255)) for x in arr]
