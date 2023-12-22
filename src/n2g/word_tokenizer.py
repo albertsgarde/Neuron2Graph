@@ -6,7 +6,7 @@ from typing import Dict, List, Tuple
 class WordTokenizer:
     """Simple tokenizer for splitting text into words"""
 
-    def __init__(self, split_tokens, stick_tokens):
+    def __init__(self, split_tokens: List[str], stick_tokens: List[str]):
         self.split_tokens = split_tokens
         self.stick_tokens = stick_tokens
 
