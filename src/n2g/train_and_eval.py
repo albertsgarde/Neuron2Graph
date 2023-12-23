@@ -1,13 +1,17 @@
 import json
 import math
 import re
-from typing import Any, List, Tuple
+from typing import Any, List, Optional, Tuple, TypeVar
+import typing
 import numpy as np
 from numpy.typing import NDArray
 import requests
 from sklearn.metrics import classification_report
 from sklearn.model_selection import train_test_split
 import torch
+from torch import Tensor
+from transformer_lens import HookedTransformer
+from jaxtyping import Int, Float
 
 import n2g
 from n2g.neuron_store import NeuronStore
@@ -17,7 +21,7 @@ from .neuron_model import NeuronModel
 parser = re.compile('\{"tokens": ')
 
 
-def get_snippets(model_name, layer, neuron):
+def get_snippets(model_name: str, layer: int, neuron: int):
     """Get the max activating dataset examples for a given neuron in a model"""
     base_url = f"https://neuroscope.io/{model_name}/{layer}/{neuron}.html"
 
@@ -43,20 +47,15 @@ def get_snippets(model_name, layer, neuron):
     return snippets
 
 
-def layer_index_to_name(layer_index, layer_ending):
+def layer_index_to_name(layer_index: int, layer_ending: str):
     return f"blocks.{layer_index}.{layer_ending}"
 
 
-def batch(arr, n=None, batch_size=None):
-    if n is None and batch_size is None:
-        raise ValueError("Either n or batch_size must be provided")
-    if n is not None and batch_size is not None:
-        raise ValueError("Either n or batch_size must be provided, not both")
+T = TypeVar("T")
 
-    if n is not None:
-        batch_size = math.floor(len(arr) / n)
-    elif batch_size is not None:
-        n = math.ceil(len(arr) / batch_size)
+
+def batch(arr: List[T], batch_size: int) -> List[List[T]]:
+    n = math.ceil(len(arr) / batch_size)
 
     extras = len(arr) - (batch_size * n)
     groups = []
@@ -80,29 +79,30 @@ def batch(arr, n=None, batch_size=None):
 
 
 def fast_prune(
-    model,
-    layer,
-    neuron,
-    prompt,
-    max_length=1024,
-    proportion_threshold=-0.5,
-    absolute_threshold=None,
-    token_activation_threshold=0.75,
-    window=0,
-    return_maxes=False,
-    cutoff=30,
-    batch_size=4,
-    max_post_context_tokens=5,
-    skip_threshold=0,
-    skip_interval=5,
-    return_intermediates=False,
+    model: HookedTransformer,
+    layer: str,
+    neuron: int,
+    prompt: str,
+    max_length: int = 1024,
+    proportion_threshold: float = -0.5,
+    absolute_threshold: Optional[float] = None,
+    token_activation_threshold: float = 0.75,
+    window: int = 0,
+    cutoff: int = 30,
+    batch_size: int = 4,
+    max_post_context_tokens: int = 5,
+    skip_threshold: int = 0,
+    skip_interval: int = 5,
+    return_intermediates: bool = False,
     **kwargs,
-):
+) -> List[Tuple[str, int, float, float]]:
     """Prune an input prompt to the shortest string that preserves x% of neuron activation on the most activating token."""
 
     prepend_bos = True
-    tokens = model.to_tokens(prompt, prepend_bos=prepend_bos)
-    str_tokens = model.to_str_tokens(prompt, prepend_bos=prepend_bos)
+    tokens: Int[Tensor, "batch_pos"] = model.to_tokens(prompt, prepend_bos=prepend_bos)
+    str_tokens: List[str] = typing.cast(
+        List[str], model.to_str_tokens(prompt, prepend_bos=prepend_bos)
+    )
 
     if len(tokens[0]) > max_length:
         tokens = tokens[0, :max_length].unsqueeze(0)
@@ -128,11 +128,10 @@ def fast_prune(
         token_to_sentence_indices[index.item()] for index in strong_indices
     ]
 
-    pruned_sentences = []
-    final_max_indices = []
-    all_intermediates = []
-    initial_maxes = []
-    truncated_maxes = []
+    pruned_sentences: List[str] = []
+    final_max_indices: List[int] = []
+    initial_maxes: List[float] = []
+    truncated_maxes: List[float] = []
 
     for strong_sentence_index, initial_argmax, initial_max in zip(
         strong_sentence_indices, strong_indices, strong_activations
@@ -151,11 +150,11 @@ def fast_prune(
 
         post_context = relevant_str_tokens[initial_argmax + 1 :]
 
-        shortest_successful_prompt = None
-        final_max_index = None
+        shortest_successful_prompt: Optional[str] = None
+        final_max_index: Optional[int] = None
 
-        truncated_prompts = []
-        added_tokens = []
+        truncated_prompts: List[str] = []
+        added_tokens: List[int] = []
 
         count = 0
         full_prior = prior_context[: max(0, initial_argmax - window + 1)]
@@ -178,11 +177,10 @@ def fast_prune(
             truncated_prompts.append(joined)
             added_tokens.append(i)
 
-        batched_truncated_prompts = batch(truncated_prompts, batch_size=batch_size)
-        batched_added_tokens = batch(added_tokens, batch_size=batch_size)
+        batched_truncated_prompts = batch(truncated_prompts, batch_size)
+        batched_added_tokens = batch(added_tokens, batch_size)
 
         finished = False
-        intermediates = []
         for i, (truncated_batch, added_tokens_batch) in enumerate(
             zip(batched_truncated_prompts, batched_added_tokens)
         ):
@@ -196,21 +194,20 @@ def fast_prune(
                 truncated_argmax = (
                     torch.argmax(truncated_activations).cpu().item() + num_added_tokens
                 )
-                final_max_index = torch.argmax(truncated_activations).cpu().item()
+                final_max_index = typing.cast(
+                    int, torch.argmax(truncated_activations).cpu().item()
+                )
 
                 if prepend_bos:
                     truncated_argmax -= 1
                     final_max_index -= 1
-                truncated_max = torch.max(truncated_activations).cpu().item()
+                truncated_max: float = torch.max(truncated_activations).cpu().item()
 
                 shortest_prompt = truncated_batch[j]
 
                 if not shortest_prompt.startswith("<|endoftext|>"):
                     truncated_str_tokens = model.to_str_tokens(
                         truncated_batch[j], prepend_bos=False
-                    )
-                    intermediates.append(
-                        (shortest_prompt, truncated_str_tokens[0], truncated_max)
                     )
 
                 if (
@@ -234,7 +231,12 @@ def fast_prune(
             if finished:
                 break
 
-        pruned_sentence = "".join(shortest_successful_prompt)
+        if shortest_successful_prompt is None:
+            raise Exception("No successful prompt found")
+        if final_max_index is None:
+            raise Exception("Error in above code")
+
+        pruned_sentence: str = shortest_successful_prompt
 
         if max_post_context_tokens is not None:
             pruned_sentence += "".join(post_context[:max_post_context_tokens])
@@ -243,37 +245,32 @@ def fast_prune(
         final_max_indices.append(final_max_index)
         initial_maxes.append(initial_max)
         truncated_maxes.append(truncated_max)
-        all_intermediates.append(intermediates)
 
-    if return_maxes:
-        return list(
-            zip(pruned_sentences, final_max_indices, initial_maxes, truncated_maxes)
-        )
-
-    elif return_intermediates:
-        return list(zip(pruned_sentences, all_intermediates))
-
-    return list(zip(pruned_sentences, final_max_indices))
+    return list(
+        zip(pruned_sentences, final_max_indices, initial_maxes, truncated_maxes)
+    )
 
 
 def fast_measure_importance(
-    model,
-    layer: int,
+    model: HookedTransformer,
+    layer: str,
     neuron: int,
-    prompt,
-    initial_argmax=None,
+    prompt: str,
+    initial_argmax: int | None = None,
     max_length: int = 1024,
-    max_activation=None,
+    max_activation: float | None = None,
     masking_token=1,
     threshold: float = 0.8,
-    scale_factor=1,
+    scale_factor: float = 1,
     activation_threshold: float = 0.1,
 ) -> Tuple[NDArray[Any], float, List[str], List[Tuple[str, float]], int]:
     """Compute a measure of token importance by masking each token and measuring the drop in activation on the max activating token"""
 
     prepend_bos = True
     tokens = model.to_tokens(prompt, prepend_bos=prepend_bos)
-    str_tokens: List[str] = model.to_str_tokens(prompt, prepend_bos=prepend_bos)
+    str_tokens: List[str] = typing.cast(
+        List[str], model.to_str_tokens(prompt, prepend_bos=prepend_bos)
+    )
 
     if len(tokens[0]) > max_length:
         tokens = tokens[0, :max_length].unsqueeze(0)
@@ -291,16 +288,15 @@ def fast_measure_importance(
     activations = cache[layer][0, :, neuron].cpu()
 
     if initial_argmax is None:
-        initial_argmax = torch.argmax(activations).cpu().item()
+        initial_argmax = typing.cast(int, torch.argmax(activations).cpu().item())
     else:
         # This could be wrong
         initial_argmax = min(initial_argmax, len(activations) - 1)
 
-    initial_max: float = activations[initial_argmax].cpu().item()
+    initial_max: float = typing.cast(float, activations[initial_argmax].cpu().item())
 
     if max_activation is None:
         max_activation = initial_max
-    scale = min(1, initial_max / max_activation)
 
     tokens_and_activations: List[Tuple[str, float]] = [
         (str_token, round(activation.cpu().item() * scale_factor / max_activation, 3))
@@ -341,25 +337,20 @@ def fast_measure_importance(
     )
 
 
-def evaluate(neuron_model, data, fire_threshold: float = 0.5, **kwargs):
-    y = []
-    y_pred = []
-    y_act = []
-    y_pred_act = []
+def evaluate(
+    neuron_model: NeuronModel,
+    data: List[Tuple[List[str], torch.FloatTensor]],
+    fire_threshold: float,
+) -> dict:
+    y: List[int] = []
+    y_pred: List[int] = []
+    y_act: NDArray[np.float32] = np.array([])
+    y_pred_act: NDArray[np.float32] = np.array([])
     for prompt_tokens, activations in data:
-        non_zero_indices = [
-            i for i, activation in enumerate(activations) if activation > 0
-        ]
-        start = max(0, non_zero_indices[0] - 10)
-        end = min(len(prompt_tokens) - 1, non_zero_indices[-1] + 10)
         pred_activations = neuron_model.forward([prompt_tokens])[0]
 
-        y_act.extend(activations)
-        y_pred_act.extend(pred_activations)
-
-        important_context = list(zip(prompt_tokens, activations, pred_activations))[
-            start:end
-        ]
+        y_act = np.concatenate((y_act, np.array(activations)))
+        y_pred_act = np.concatenate((y_pred_act, np.array(pred_activations)))
 
         pred_firings = [
             int(pred_activation >= fire_threshold)
@@ -372,9 +363,6 @@ def evaluate(neuron_model, data, fire_threshold: float = 0.5, **kwargs):
     print(classification_report(y, y_pred), flush=True)
     report = classification_report(y, y_pred, output_dict=True)
 
-    y_act = np.array(y_act)
-    y_pred_act = np.array(y_pred_act)
-
     act_diff = y_pred_act - y_act
     mse = np.mean(np.power(act_diff, 2))
     variance = np.var(y_act)
@@ -385,14 +373,14 @@ def evaluate(neuron_model, data, fire_threshold: float = 0.5, **kwargs):
 
 
 def augment_and_return(
-    model,
-    layer,
-    neuron,
+    model: HookedTransformer,
+    layer: str,
+    neuron: int,
     aug,
-    pruned_prompt,
-    base_max_act=None,
-    use_index=False,
-    scale_factor=1,
+    pruned_prompt: str,
+    base_max_act: float | None = None,
+    use_index: bool = False,
+    scale_factor: float = 1,
     **kwargs,
 ) -> List[Tuple[NDArray[Any], List[Tuple[str, float]], int]]:
     info: List[Tuple[NDArray[Any], List[Tuple[str, float]], int]] = []
@@ -496,22 +484,22 @@ def augment_and_return(
 
 
 def train_and_eval(
-    model,
-    layer,
-    neuron,
+    model: HookedTransformer,
+    layer: str,
+    neuron: int,
     aug,
     base_path: str,
     model_name: str,
     activation_matrix,
-    layer_ending,
+    layer_ending: str,
     neuron_store: NeuronStore,
-    train_proportion=0.5,
-    max_train_size=10,
-    max_eval_size=20,
-    fire_threshold=0.5,
-    random_state=0,
+    train_proportion: float = 0.5,
+    max_train_size: int = 10,
+    max_eval_size: int = 20,
+    fire_threshold: float = 0.5,
+    random_state: int = 0,
     train_indexes=None,
-    return_paths=False,
+    return_paths: bool = False,
     **kwargs,
 ):
     if isinstance(layer, int):
@@ -568,19 +556,19 @@ def train_and_eval(
 
     print("Fitted model", flush=True)
 
-    max_test_data = []
+    max_test_data: List[Tuple[List[str], torch.FloatTensor]] = []
     for snippet in test_snippets:
         tokens = model.to_tokens(snippet, prepend_bos=True)
-        str_tokens = model.to_str_tokens(snippet, prepend_bos=True)
+        str_tokens = typing.cast(
+            List[str], model.to_str_tokens(snippet, prepend_bos=True)
+        )
         logits, cache = model.run_with_cache(tokens)
-        activations = cache[layer][0, :, neuron].cpu()
+        activations: Float[Tensor] = cache[layer][0, :, neuron].cpu()  # type: ignore
         max_test_data.append((str_tokens, activations / base_max_act))
 
     print("Max Activating Evaluation Data", flush=True)
     try:
-        stats = evaluate(
-            neuron_model, max_test_data, fire_threshold=fire_threshold, **kwargs
-        )
+        stats = evaluate(neuron_model, max_test_data, fire_threshold)
     except Exception as e:
         stats = {}
         print(f"Stats failed with error: {e}", flush=True)

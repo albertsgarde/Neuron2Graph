@@ -177,7 +177,7 @@ class FastAugmenter:
 
 def augment(
     model: HookedTransformer,
-    layer: int,
+    layer: str,
     index: int,
     prompt: str,
     aug: FastAugmenter,
