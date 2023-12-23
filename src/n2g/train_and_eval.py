@@ -261,7 +261,6 @@ def fast_measure_importance(
     masking_token=1,
     threshold: float = 0.8,
     scale_factor: float = 1,
-    activation_threshold: float = 0.1,
 ) -> Tuple[NDArray[Any], float, List[str], List[Tuple[str, float]], int]:
     """Compute a measure of token importance by masking each token and measuring the drop in activation on the max activating token"""
 
@@ -497,8 +496,7 @@ def train_and_eval(
     fire_threshold: float = 0.5,
     random_state: int = 0,
     train_indexes: Optional[List[int]] = None,
-    return_paths: bool = False,
-):
+) -> dict:
     if isinstance(layer, int):
         layer = layer_index_to_name(layer, layer_ending)
 
@@ -554,7 +552,7 @@ def train_and_eval(
     neuron_model = NeuronModel(
         layer_num, neuron, neuron_store, activation_threshold, importance_threshold
     )
-    paths = neuron_model.fit(all_info, base_path, model_name)
+    _ = neuron_model.fit(all_info, base_path, model_name)
 
     print("Fitted model", flush=True)
 
@@ -575,6 +573,4 @@ def train_and_eval(
         stats = {}
         print(f"Stats failed with error: {e}", flush=True)
 
-    if return_paths:
-        return stats, paths
     return stats
