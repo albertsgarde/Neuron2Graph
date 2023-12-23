@@ -10,7 +10,7 @@ import traceback
 import numpy as np
 
 import torch
-from transformers import AutoModelForMaskedLM
+from transformers import AutoModelForMaskedLM  # type: ignore
 from transformers import AutoTokenizer
 from transformer_lens import HookedTransformer
 
@@ -18,16 +18,11 @@ import n2g
 from n2g import FastAugmenter, WordTokenizer, NeuronStore, train_and_eval
 
 
-def run_training(layers, neurons, sample_num=None, start_neuron=None):
+def run_training(layers: List[int], neurons: int):
     params = {
         "importance_threshold": 0.75,
-        "n": 5,
-        "max_train_size": None,
-        "train_proportion": 0.5,
-        "max_eval_size": 0.5,
         "activation_threshold": 0.5,
         "token_activation_threshold": 1,
-        "fire_threshold": 0.5,
     }
     print(f"{params=}\n", flush=True)
     random.seed(0)
@@ -59,17 +54,10 @@ def run_training(layers, neurons, sample_num=None, start_neuron=None):
     for layer in layers:
         t1 = time.perf_counter()
 
-        if sample_num is None:
-            chosen_neuron_indices = all_neuron_indices
-        else:
-            chosen_neuron_indices = random.sample(all_neuron_indices, sample_num)
-            chosen_neuron_indices = sorted(chosen_neuron_indices)
+        chosen_neuron_indices = all_neuron_indices
 
         all_stats[layer] = {}
         for i, neuron in enumerate(chosen_neuron_indices):
-            if start_neuron is not None and neuron < start_neuron:
-                continue
-
             print(f"{layer=} {neuron=}", flush=True)
             try:
                 stats = train_and_eval(
@@ -82,9 +70,6 @@ def run_training(layers, neurons, sample_num=None, start_neuron=None):
                     activation_matrix,
                     layer_ending,
                     neuron_store,
-                    importance_threshold=params["importance_threshold"],
-                    activation_threshold=params["activation_threshold"],
-                    token_activation_threshold=params["token_activation_threshold"],
                 )
 
                 all_stats[layer][neuron] = stats
@@ -202,10 +187,6 @@ if __name__ == "__main__":
         layers=layers,
         # Number of neurons in each layer
         neurons=neurons_per_layer,
-        # Neuron to start at (useful for resuming - None to start at 0)
-        start_neuron=None,
-        # Number of neurons to sample from each layer (None for all neurons)
-        sample_num=None,
     )
 
     n2g.get_summary_stats(f"{base_path}/neuron_graphs/{model_name}/stats.json")

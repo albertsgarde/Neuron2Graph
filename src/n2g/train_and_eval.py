@@ -87,7 +87,7 @@ def fast_prune(
     max_length: int = 1024,
     proportion_threshold: float = -0.5,
     absolute_threshold: Optional[float] = None,
-    token_activation_threshold: float = 0.75,
+    token_activation_threshold: float = 1,
     window: int = 0,
     cutoff: int = 30,
     batch_size: int = 4,
@@ -481,7 +481,7 @@ def augment_and_return(
 
 def train_and_eval(
     model: HookedTransformer,
-    layer: str,
+    layer_index: int,
     neuron: int,
     aug: FastAugmenter,
     base_path: str,
@@ -489,16 +489,12 @@ def train_and_eval(
     activation_matrix: NDArray[np.float32],
     layer_ending: str,
     neuron_store: NeuronStore,
-    token_activation_threshold: float,
-    activation_threshold: float,
-    importance_threshold: float,
     train_proportion: float = 0.5,
     fire_threshold: float = 0.5,
     random_state: int = 0,
     train_indexes: Optional[List[int]] = None,
 ) -> dict:
-    if isinstance(layer, int):
-        layer = layer_index_to_name(layer, layer_ending)
+    layer = layer_index_to_name(layer_index, layer_ending)
 
     layer_num = int(layer.split(".")[1])
     base_max_act = float(activation_matrix[layer_num, neuron])
@@ -529,7 +525,6 @@ def train_and_eval(
             layer,
             neuron,
             snippet,
-            token_activation_threshold=token_activation_threshold,
         )
 
         for pruned_prompt, _, initial_max_act, truncated_max_act in pruned_results:
@@ -549,9 +544,7 @@ def train_and_eval(
             )
             all_info.append(info)
 
-    neuron_model = NeuronModel(
-        layer_num, neuron, neuron_store, activation_threshold, importance_threshold
-    )
+    neuron_model = NeuronModel(layer_num, neuron, neuron_store)
     _ = neuron_model.fit(all_info, base_path, model_name)
 
     print("Fitted model", flush=True)

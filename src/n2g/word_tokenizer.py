@@ -1,12 +1,12 @@
 import re
 from collections import defaultdict
-from typing import Dict, List, Tuple
+from typing import Dict, List, Set, Tuple
 
 
 class WordTokenizer:
     """Simple tokenizer for splitting text into words"""
 
-    def __init__(self, split_tokens: List[str], stick_tokens: List[str]):
+    def __init__(self, split_tokens: Set[str], stick_tokens: Set[str]):
         self.split_tokens = split_tokens
         self.stick_tokens = stick_tokens
 

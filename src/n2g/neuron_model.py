@@ -72,8 +72,8 @@ class NeuronModel:
         layer: int,
         neuron: int,
         neuron_store: NeuronStore,
-        activation_threshold: float = 0.1,
-        importance_threshold: float = 0.5,
+        activation_threshold: float = 0.5,
+        importance_threshold: float = 0.75,
         folder_name: Optional[str] = None,
         **kwargs,
     ):
