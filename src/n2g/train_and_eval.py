@@ -268,7 +268,7 @@ def fast_measure_importance(
     threshold: float = 0.8,
     scale_factor=1,
     activation_threshold: float = 0.1,
-) -> Tuple[NDArray[Any], float, List[str], List[List[str | float]], int]:
+) -> Tuple[NDArray[Any], float, List[str], List[Tuple[str, float]], int]:
     """Compute a measure of token importance by masking each token and measuring the drop in activation on the max activating token"""
 
     prepend_bos = True
@@ -302,8 +302,8 @@ def fast_measure_importance(
         max_activation = initial_max
     scale = min(1, initial_max / max_activation)
 
-    tokens_and_activations: List[List[str | float]] = [
-        [str_token, round(activation.cpu().item() * scale_factor / max_activation, 3)]
+    tokens_and_activations: List[Tuple[str, float]] = [
+        (str_token, round(activation.cpu().item() * scale_factor / max_activation, 3))
         for str_token, activation in zip(str_tokens, activations)
     ]
     important_tokens: List[str] = []
@@ -394,8 +394,8 @@ def augment_and_return(
     use_index=False,
     scale_factor=1,
     **kwargs,
-) -> List[Tuple[NDArray[Any], List[List[str | float]], int]]:
-    info: List[Tuple[NDArray[Any], List[List[str | float]], int]] = []
+) -> List[Tuple[NDArray[Any], List[Tuple[str, float]], int]]:
+    info: List[Tuple[NDArray[Any], List[Tuple[str, float]], int]] = []
     (
         importances_matrix,
         initial_max_act,
@@ -536,7 +536,7 @@ def train_and_eval(
 
     all_train_snippets = train_snippets
 
-    all_info: List[List[Tuple[NDArray[Any], List[List[str | float]], int]]] = []
+    all_info: List[List[Tuple[NDArray[Any], List[Tuple[str, float]], int]]] = []
     for i, snippet in enumerate(all_train_snippets):
         # if i % 10 == 0:
         print(f"Processing {i + 1} of {len(all_train_snippets)}", flush=True)

@@ -30,7 +30,7 @@ class NeuronNode:
     ):
         if value is None:
             value = {}
-        self.children = {}
+        self.children: Dict[str, Tuple[NeuronNode, NeuronEdge]] = {}
         self.id_ = id_
         self.value = value
         self.depth = depth
@@ -108,16 +108,6 @@ class NeuronModel:
         )
         self.activation_threshold = activation_threshold
         self.importance_threshold = importance_threshold
-        # self.net = Network(notebook=True)
-        # self.net = Graph(graph_attr={"rankdir": "LR", "splines": "spline", "ranksep": "20", "nodesep": "1"}, node_attr={"fixedsize": "true", "width": "1.5"})
-        # self.net = Graph(
-        #     graph_attr={"rankdir": "RL", "splines": "spline", "ranksep": "5", "nodesep": "1"},
-        #     node_attr={"fixedsize": "true", "width": "2"}
-        # )
-        # self.net = Graph(
-        #     graph_attr={"rankdir": "RL", "splines": "spline", "ranksep": "2", "nodesep": "0.25"},
-        #     node_attr={"fixedsize": "true", "width": "2", "height": "0.75"}
-        # )
         self.net = Digraph(
             graph_attr={
                 "rankdir": "RL",
@@ -191,7 +181,7 @@ class NeuronModel:
 
     def fit(
         self,
-        data: List[List[Tuple[NDArray[Any], List[List[str | float]], int]]],
+        data: List[List[Tuple[NDArray[Any], List[Tuple[str, float]], int]]],
         base_path: str,
         model_name: str,
     ):
@@ -262,7 +252,7 @@ class NeuronModel:
 
     def make_line(
         self,
-        info: Tuple[NDArray[Any], List[List[str | float]], int],
+        info: Tuple[NDArray[Any], List[Tuple[str, float]], int],
         important_index_sets: Optional[List[Set[Any]]] = None,
     ) -> Tuple[List[List[Element]], List[Set[Any]]]:
         if important_index_sets is None:
@@ -414,7 +404,7 @@ class NeuronModel:
         """Evaluate the activation on the first token in tokens"""
         current_tuple = self.trie_root
 
-        activations = [0]
+        activations = [0.0]
 
         for i, token in enumerate(reversed(tokens)):
             token = self.normalise(token)
