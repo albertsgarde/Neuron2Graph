@@ -151,9 +151,6 @@ if __name__ == "__main__":
     """
 
     model_name, layer_ending, layers, neurons_per_layer = cmd_arguments()
-    # Uncomment and overwrite if you would rather specify the model name and layer ending here.
-    # model_name = "gpt2-small"
-    # layer_ending = "mlp.hook_post"
 
     print(
         f"Running N2G for model {model_name} layers {layers}. Using layer ending {layer_ending} and {neurons_per_layer} neurons per layer."
@@ -192,8 +189,6 @@ if __name__ == "__main__":
     stick_tokens = {"'"}
     word_tokenizer = WordTokenizer(set(), stick_tokens)
     fast_aug = FastAugmenter(aug_model, aug_tokenizer, word_tokenizer, word_to_casings)
-
-    # main()
 
     if not os.path.exists(f"{base_path}/neuron_graphs"):
         os.mkdir(f"{base_path}/neuron_graphs")

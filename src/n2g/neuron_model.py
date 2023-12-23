@@ -27,8 +27,6 @@ class NeuronNode:
         id_: int,
         value: Element,
         depth: int,
-        important: bool = False,
-        activator: bool = False,
     ):
         if value is None:
             value = {}
@@ -54,7 +52,7 @@ class NeuronNode:
 class NeuronEdge:
     def __init__(
         self,
-        weight=0,
+        weight: float = 0,
         parent: Optional[NeuronNode] = None,
         child: Optional[NeuronNode] = None,
     ):

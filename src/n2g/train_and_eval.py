@@ -111,7 +111,6 @@ def fast_prune(
     activations = cache[layer][0, :, neuron].cpu()
 
     full_initial_max = torch.max(activations).cpu().item()
-    full_initial_argmax = torch.argmax(activations).cpu().item()
 
     (
         sentences,
@@ -119,16 +118,11 @@ def fast_prune(
         token_to_sentence_indices,
     ) = n2g.word_tokenizer.sentence_tokenizer(str_tokens)
 
-    # print(activation_threshold * full_initial_max, flush=True)
-
     strong_indices = torch.where(
         activations >= token_activation_threshold * full_initial_max
     )[0]
     strong_activations = activations[strong_indices].cpu()
     strong_indices = strong_indices.cpu()
-
-    # print(strong_activations, flush=True)
-    # print(strong_indices, flush=True)
 
     strong_sentence_indices = [
         token_to_sentence_indices[index.item()] for index in strong_indices
@@ -145,7 +139,6 @@ def fast_prune(
     ):
         initial_argmax = initial_argmax.item()
         initial_max = initial_max.item()
-        # print(strong_sentence_index, initial_argmax, initial_max, flush=True)
 
         max_sentence_index = token_to_sentence_indices[initial_argmax]
         relevant_str_tokens = [
@@ -173,16 +166,12 @@ def fast_prune(
             if count > cutoff:
                 break
 
-            # print(count, len(full_prior), flush=True)
-
             if (
                 not count == len(full_prior)
                 and count >= skip_threshold
                 and count % skip_interval != 0
             ):
                 continue
-
-            # print("Made it!", flush=True)
 
             truncated_prompt = prior_context[i:]
             joined = "".join(truncated_prompt)
@@ -197,21 +186,13 @@ def fast_prune(
         for i, (truncated_batch, added_tokens_batch) in enumerate(
             zip(batched_truncated_prompts, batched_added_tokens)
         ):
-            # print("length", len(truncated_batch), flush=True)
-            # pprint(truncated_batch)
-
             truncated_tokens = model.to_tokens(truncated_batch, prepend_bos=prepend_bos)
-
-            # pprint(truncated_tokens)
 
             logits, cache = model.run_with_cache(truncated_tokens)
             all_truncated_activations = cache[layer][:, :, neuron].cpu()
 
-            # print("shape", all_truncated_activations.shape, flush=True)
-
             for j, truncated_activations in enumerate(all_truncated_activations):
                 num_added_tokens = added_tokens_batch[j]
-                # print("single shape", truncated_activations.shape, flush=True)
                 truncated_argmax = (
                     torch.argmax(truncated_activations).cpu().item() + num_added_tokens
                 )
@@ -221,14 +202,6 @@ def fast_prune(
                     truncated_argmax -= 1
                     final_max_index -= 1
                 truncated_max = torch.max(truncated_activations).cpu().item()
-
-                # trunc_logits, trunc_cache = model.run_with_cache(model.to_tokens(truncated_batch[j], prepend_bos=prepend_bos))
-                # trunc_activations = trunc_cache[layer][0, :, neuron]
-
-                # print(truncated_activations, flush=True)
-                # print(trunc_activations, flush=True)
-                # print("truncated_argmax", truncated_argmax, flush=True)
-                # print(truncated_max, flush=True)
 
                 shortest_prompt = truncated_batch[j]
 
@@ -261,13 +234,7 @@ def fast_prune(
             if finished:
                 break
 
-        # if shortest_successful_prompt is None:
-        #   pruned_sentence = "".join(relevant_str_tokens)
-        #   final_max_index = initial_argmax
-        # else:
-        pruned_sentence = "".join(
-            shortest_successful_prompt
-        )  # if shortest_successful_prompt is not None else shortest_prompt
+        pruned_sentence = "".join(shortest_successful_prompt)
 
         if max_post_context_tokens is not None:
             pruned_sentence += "".join(post_context[:max_post_context_tokens])
@@ -313,8 +280,6 @@ def fast_measure_importance(
 
     importances_matrix: List[NDArray[Any]] = []
 
-    shortest_successful_prompt = None
-
     masked_prompts = tokens.repeat(len(tokens[0]) + 1, 1)
 
     for i in range(1, len(masked_prompts)):
@@ -356,10 +321,6 @@ def fast_measure_importance(
             )
             importances_row.append((str_tokens[j], normalised_activation))
 
-        # for j, str_token in enumerate(str_tokens[cutoff:]):
-        #   importances_row.append((str_token, 0))
-
-        # print("importances_row", importances_row, flush=True)
         importances_matrix.append(np.array(importances_row))
 
         masked_max = masked_activations[initial_argmax].cpu().item()
@@ -386,15 +347,12 @@ def evaluate(neuron_model, data, fire_threshold: float = 0.5, **kwargs):
     y_act = []
     y_pred_act = []
     for prompt_tokens, activations in data:
-        # print("truth", flush=True)
         non_zero_indices = [
             i for i, activation in enumerate(activations) if activation > 0
         ]
         start = max(0, non_zero_indices[0] - 10)
         end = min(len(prompt_tokens) - 1, non_zero_indices[-1] + 10)
-        pred_activations = neuron_model.forward(
-            [prompt_tokens]
-        )[0]
+        pred_activations = neuron_model.forward([prompt_tokens])[0]
 
         y_act.extend(activations)
         y_pred_act.extend(pred_activations)
@@ -403,8 +361,6 @@ def evaluate(neuron_model, data, fire_threshold: float = 0.5, **kwargs):
             start:end
         ]
 
-        # print(important_context, flush=True)
-        # print(len(pred_activations), flush=True)
         pred_firings = [
             int(pred_activation >= fire_threshold)
             for pred_activation in pred_activations
@@ -412,27 +368,17 @@ def evaluate(neuron_model, data, fire_threshold: float = 0.5, **kwargs):
         firings = [int(activation >= fire_threshold) for activation in activations]
         y_pred.extend(pred_firings)
         y.extend(firings)
-    # print(len(y), len(y_pred), flush=True)
+
     print(classification_report(y, y_pred), flush=True)
     report = classification_report(y, y_pred, output_dict=True)
 
     y_act = np.array(y_act)
     y_pred_act = np.array(y_pred_act)
 
-    # y_pred_act = y_pred_act[y_act > 0.5]
-    # y_act = y_act[y_act > 0.5]
-
-    # print(y_act[:10], flush=True)
-    # print(y_pred_act[:10], flush=True)
-
-    # y_pred_act = y_pred_act * np.mean(y_act) / np.mean(y_pred_act)
-    # y_pred_act =
-
     act_diff = y_pred_act - y_act
     mse = np.mean(np.power(act_diff, 2))
     variance = np.var(y_act)
     correlation = 1 - (mse / variance)
-    # print(f"{correlation=:.3f}, {mse=:.3f}, {variance=:.4f}", flush=True)
 
     report["correlation"] = correlation
     return report
@@ -479,16 +425,6 @@ def augment_and_return(
     )
 
     for i, (prompt, activation, change) in enumerate(positive_prompts):
-        title = prompt
-        if i == 0:
-            title = "Original - " + prompt
-
-        #   print("Original", flush=True)
-        #   print(prompt, "\n", flush=True)
-        # elif i > 1:
-        #   print("Augmented", flush=True)
-        #   print(prompt, "\n", flush=True)
-
         if use_index:
             (
                 importances_matrix,
@@ -610,22 +546,7 @@ def train_and_eval(
         )
 
         for pruned_prompt, _, initial_max_act, truncated_max_act in pruned_results:
-            # tokens = model.to_tokens(pruned_prompt, prepend_bos=True)
-            # str_tokens = model.to_str_tokens(pruned_prompt, prepend_bos=True)
-            # logits, cache = model.run_with_cache(tokens)
-            # activations = cache[layer][0, :, neuron].cpu()
-            # max_pruned_activation = torch.max(activations).item()
             scale_factor = initial_max_act / truncated_max_act
-            # scale_factor = 1
-
-            # print(scale_factor, flush=True)
-            # scaled_activations = activations * scale_factor / base_max_act
-
-            # print(list(zip(str_tokens, activations)), flush=True)
-
-            # print(pruned_prompt, flush=True)
-
-            # print(len(pruned_prompt), flush=True)
 
             if pruned_prompt is None:
                 continue
