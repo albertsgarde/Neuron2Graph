@@ -502,9 +502,10 @@ def train_and_eval(
     snippets = get_snippets(model_name, layer_num, neuron)
 
     if train_indexes is None:
-        train_snippets, test_snippets = train_test_split(
+        split: Tuple[List[str], List[str]] = train_test_split(
             snippets, train_size=train_proportion, random_state=random_state
         )
+        train_snippets, test_snippets = split
     else:
         train_snippets = [
             snippet for i, snippet in enumerate(snippets) if i in train_indexes
