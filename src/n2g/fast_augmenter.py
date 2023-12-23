@@ -187,7 +187,6 @@ def augment(
     exclusion_threshold: float = -0.5,
     n: int = 5,
     exclude_stopwords: bool = False,
-    **kwargs,
 ) -> Tuple[List[Tuple[str, float, float]], List[Tuple[str, float, float]]]:
     """Generate variations of a prompt using an augmenter"""
     prepend_bos = True

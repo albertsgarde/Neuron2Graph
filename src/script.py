@@ -18,18 +18,17 @@ import n2g
 from n2g import FastAugmenter, WordTokenizer, NeuronStore, train_and_eval
 
 
-def run_training(layers, neurons, sample_num=None, params=None, start_neuron=None):
-    if params is None or not params:
-        params = {
-            "importance_threshold": 0.75,
-            "n": 5,
-            "max_train_size": None,
-            "train_proportion": 0.5,
-            "max_eval_size": 0.5,
-            "activation_threshold": 0.5,
-            "token_activation_threshold": 1,
-            "fire_threshold": 0.5,
-        }
+def run_training(layers, neurons, sample_num=None, start_neuron=None):
+    params = {
+        "importance_threshold": 0.75,
+        "n": 5,
+        "max_train_size": None,
+        "train_proportion": 0.5,
+        "max_eval_size": 0.5,
+        "activation_threshold": 0.5,
+        "token_activation_threshold": 1,
+        "fire_threshold": 0.5,
+    }
     print(f"{params=}\n", flush=True)
     random.seed(0)
 
@@ -83,7 +82,9 @@ def run_training(layers, neurons, sample_num=None, params=None, start_neuron=Non
                     activation_matrix,
                     layer_ending,
                     neuron_store,
-                    **params,
+                    importance_threshold=params["importance_threshold"],
+                    activation_threshold=params["activation_threshold"],
+                    token_activation_threshold=params["token_activation_threshold"],
                 )
 
                 all_stats[layer][neuron] = stats
@@ -196,9 +197,6 @@ if __name__ == "__main__":
     # ================ Run ================
     # Run training for the specified layers and neurons
 
-    # Override params as desired - sensible defaults are set in run_training
-    params = {}
-
     run_training(
         # List of layers to run for
         layers=layers,
@@ -208,7 +206,6 @@ if __name__ == "__main__":
         start_neuron=None,
         # Number of neurons to sample from each layer (None for all neurons)
         sample_num=None,
-        params=params,
     )
 
     n2g.get_summary_stats(f"{base_path}/neuron_graphs/{model_name}/stats.json")

@@ -6,14 +6,15 @@ import typing
 import numpy as np
 from numpy.typing import NDArray
 import requests
-from sklearn.metrics import classification_report
-from sklearn.model_selection import train_test_split
+from sklearn.metrics import classification_report  # type: ignore
+from sklearn.model_selection import train_test_split  # type: ignore
 import torch
 from torch import Tensor
 from transformer_lens import HookedTransformer
 from jaxtyping import Int, Float
 
 import n2g
+from n2g.fast_augmenter import FastAugmenter
 from n2g.neuron_store import NeuronStore
 from .neuron_model import NeuronModel
 
@@ -21,7 +22,7 @@ from .neuron_model import NeuronModel
 parser = re.compile('\{"tokens": ')
 
 
-def get_snippets(model_name: str, layer: int, neuron: int):
+def get_snippets(model_name: str, layer: int, neuron: int) -> List[str]:
     """Get the max activating dataset examples for a given neuron in a model"""
     base_url = f"https://neuroscope.io/{model_name}/{layer}/{neuron}.html"
 
@@ -29,7 +30,7 @@ def get_snippets(model_name: str, layer: int, neuron: int):
     webpage = response.text
 
     parts = parser.split(webpage)
-    snippets = []
+    snippets: List[str] = []
     for i, part in enumerate(parts):
         if i == 0 or i % 2 != 0:
             continue
@@ -47,7 +48,7 @@ def get_snippets(model_name: str, layer: int, neuron: int):
     return snippets
 
 
-def layer_index_to_name(layer_index: int, layer_ending: str):
+def layer_index_to_name(layer_index: int, layer_ending: str) -> str:
     return f"blocks.{layer_index}.{layer_ending}"
 
 
@@ -93,8 +94,6 @@ def fast_prune(
     max_post_context_tokens: int = 5,
     skip_threshold: int = 0,
     skip_interval: int = 5,
-    return_intermediates: bool = False,
-    **kwargs,
 ) -> List[Tuple[str, int, float, float]]:
     """Prune an input prompt to the shortest string that preserves x% of neuron activation on the most activating token."""
 
@@ -376,12 +375,11 @@ def augment_and_return(
     model: HookedTransformer,
     layer: str,
     neuron: int,
-    aug,
+    aug: FastAugmenter,
     pruned_prompt: str,
     base_max_act: float | None = None,
     use_index: bool = False,
     scale_factor: float = 1,
-    **kwargs,
 ) -> List[Tuple[NDArray[Any], List[Tuple[str, float]], int]]:
     info: List[Tuple[NDArray[Any], List[Tuple[str, float]], int]] = []
     (
@@ -409,7 +407,6 @@ def augment_and_return(
         pruned_prompt,
         aug,
         important_tokens=set(important_tokens),
-        **kwargs,
     )
 
     for i, (prompt, activation, change) in enumerate(positive_prompts):
@@ -487,20 +484,20 @@ def train_and_eval(
     model: HookedTransformer,
     layer: str,
     neuron: int,
-    aug,
+    aug: FastAugmenter,
     base_path: str,
     model_name: str,
-    activation_matrix,
+    activation_matrix: NDArray[np.float32],
     layer_ending: str,
     neuron_store: NeuronStore,
+    token_activation_threshold: float,
+    activation_threshold: float,
+    importance_threshold: float,
     train_proportion: float = 0.5,
-    max_train_size: int = 10,
-    max_eval_size: int = 20,
     fire_threshold: float = 0.5,
     random_state: int = 0,
-    train_indexes=None,
+    train_indexes: Optional[List[int]] = None,
     return_paths: bool = False,
-    **kwargs,
 ):
     if isinstance(layer, int):
         layer = layer_index_to_name(layer, layer_ending)
@@ -530,7 +527,11 @@ def train_and_eval(
         print(f"Processing {i + 1} of {len(all_train_snippets)}", flush=True)
 
         pruned_results = fast_prune(
-            model, layer, neuron, snippet, return_maxes=True, **kwargs
+            model,
+            layer,
+            neuron,
+            snippet,
+            token_activation_threshold=token_activation_threshold,
         )
 
         for pruned_prompt, _, initial_max_act, truncated_max_act in pruned_results:
@@ -547,11 +548,12 @@ def train_and_eval(
                 pruned_prompt,
                 base_max_act=base_max_act,
                 scale_factor=scale_factor,
-                **kwargs,
             )
             all_info.append(info)
 
-    neuron_model = NeuronModel(layer_num, neuron, neuron_store, **kwargs)
+    neuron_model = NeuronModel(
+        layer_num, neuron, neuron_store, activation_threshold, importance_threshold
+    )
     paths = neuron_model.fit(all_info, base_path, model_name)
 
     print("Fitted model", flush=True)
