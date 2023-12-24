@@ -162,8 +162,7 @@ class NeuronModel:
 
     def fit(
         self,
-        data: List[List[Tuple[NDArray[Any], List[Tuple[str, float]], int]]],
-        graph_dir: str,
+        data: List[List[Tuple[NDArray[Any], List[Tuple[str, float]]]]],
     ):
         for example_data in data:
             for j, info in enumerate(example_data):
@@ -176,11 +175,6 @@ class NeuronModel:
                     self.add(self.root, line, graph=True)
                     self.add(self.trie_root, line, graph=False)
 
-        net = self.graphviz()
-
-        file_path = os.path.join(graph_dir, f"{self.layer}_{self.neuron}")
-        with open(file_path, "w") as f:
-            f.write(net.source)
         self.merge_ignores()
 
     def update_neuron_store(self, neuron_store: NeuronStore) -> None:
@@ -220,7 +214,7 @@ class NeuronModel:
 
     def make_line(
         self,
-        info: Tuple[NDArray[Any], List[Tuple[str, float]], int],
+        info: Tuple[NDArray[Any], List[Tuple[str, float]]],
         important_index_sets: Optional[List[Set[Any]]] = None,
     ) -> Tuple[List[List[Element]], List[Set[Any]]]:
         if important_index_sets is None:
@@ -229,7 +223,7 @@ class NeuronModel:
         else:
             create_indices = False
 
-        importances_matrix, tokens_and_activations, max_index = info
+        importances_matrix, tokens_and_activations = info
 
         all_lines: List[List[Element]] = []
 

@@ -1,5 +1,6 @@
 import json
 import math
+import os
 import re
 from typing import Any, List, Optional, Tuple, TypeVar
 import typing
@@ -350,8 +351,8 @@ def augment_and_return(
     base_max_act: float | None = None,
     use_index: bool = False,
     scale_factor: float = 1,
-) -> List[Tuple[NDArray[Any], List[Tuple[str, float]], int]]:
-    info: List[Tuple[NDArray[Any], List[Tuple[str, float]], int]] = []
+) -> List[Tuple[NDArray[Any], List[Tuple[str, float]]]]:
+    info: List[Tuple[NDArray[Any], List[Tuple[str, float]]]] = []
     (
         importances_matrix,
         initial_max_act,
@@ -411,7 +412,7 @@ def augment_and_return(
                 max_activation=initial_max_act,
                 scale_factor=scale_factor,
             )
-        info.append((importances_matrix, tokens_and_activations, max_index))
+        info.append((importances_matrix, tokens_and_activations))
 
     for prompt, activation, change in negative_prompts:
         if use_index:
@@ -445,7 +446,7 @@ def augment_and_return(
                 max_activation=initial_max_act,
                 scale_factor=scale_factor,
             )
-        info.append((importances_matrix, tokens_and_activations, max_index))
+        info.append((importances_matrix, tokens_and_activations))
 
     return info
 
@@ -485,7 +486,7 @@ def train_and_eval(
 
     all_train_samples = train_samples
 
-    all_info: List[List[Tuple[NDArray[Any], List[Tuple[str, float]], int]]] = []
+    all_info: List[List[Tuple[NDArray[Any], List[Tuple[str, float]]]]] = []
     for i, snippet in enumerate(all_train_samples):
         # if i % 10 == 0:
         print(f"Processing {i + 1} of {len(all_train_samples)}", flush=True)
@@ -515,8 +516,14 @@ def train_and_eval(
             all_info.append(info)
 
     neuron_model = NeuronModel(layer_num, neuron)
-    _ = neuron_model.fit(all_info, graph_dir)
+    neuron_model.fit(all_info)
     neuron_model.update_neuron_store(neuron_store)
+
+    net = neuron_model.graphviz()
+
+    file_path = os.path.join(graph_dir, f"{neuron_model.layer}_{neuron}")
+    with open(file_path, "w") as f:
+        f.write(net.source)
 
     print("Fitted model", flush=True)
 
