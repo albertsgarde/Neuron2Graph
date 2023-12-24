@@ -200,15 +200,15 @@ class NeuronModel:
 
         self.save_neurons()
 
-    def save_neurons(self):
-        visited = set()  # List to keep track of visited nodes.
-        queue = []  # Initialize a queue
+    def save_neurons(self) -> None:
+        visited: Set[int] = set()  # List to keep track of visited nodes.
+        queue: List[Tuple[NeuronNode, NeuronEdge]] = []  # Initialize a queue
 
         visited.add(self.trie_root[0].id_)
         queue.append(self.trie_root)
 
         while queue:
-            node, edge = queue.pop(0)
+            node, _ = queue.pop(0)
 
             token = node.value.token
 
@@ -225,13 +225,13 @@ class NeuronModel:
                 add_dict[token].add(f"{self.layer}_{self.neuron}")
 
             for token, neighbour in node.children.items():
-                new_node, new_edge = neighbour
+                new_node, _new_edge = neighbour
                 if new_node.id_ not in visited:
                     visited.add(new_node.id_)
                     queue.append(neighbour)
 
     @staticmethod
-    def normalise(token: str):
+    def normalise(token: str) -> str:
         normalised_token = (
             token.lower() if token.istitle() and len(token) > 1 else token
         )
