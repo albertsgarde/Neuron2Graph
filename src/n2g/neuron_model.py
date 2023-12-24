@@ -2,6 +2,7 @@ from collections import Counter, defaultdict, namedtuple
 import json
 import os
 from typing import Any, Dict, List, NamedTuple, Optional, Set, Tuple
+import numpy as np
 
 from numpy.typing import NDArray
 
@@ -111,110 +112,9 @@ class NeuronModel:
     def __call__(self, tokens_arr: List[List[str]]) -> List[List[float]]:
         return self.forward(tokens_arr)
 
-    def add(
-        self,
-        start_tuple: Tuple[NeuronNode, NeuronEdge],
-        line: List[Element],
-        graph: bool = True,
-    ) -> None:
-        current_tuple = start_tuple
-        important_count = 0
-
-        start_depth = current_tuple[0].depth
-
-        for i, element in enumerate(line):
-            if element is None and i > 0:
-                break
-
-            if element.ignore and graph:
-                continue
-
-            # Normalise token
-            element = element._replace(token=NeuronModel.normalise(element.token))
-
-            if graph:
-                # Set end value as we don't have end nodes in the graph
-                # The current node is an end if there's only one more node, as that will be the end node that we don't add
-                is_end = i == len(line) - 2
-                element = element._replace(is_end=is_end)
-
-            important_count += 1
-
-            current_node, current_edge = current_tuple
-
-            if element.token in current_node.children:
-                current_tuple = current_node.children[element.token]
-                continue
-
-            weight = 0
-
-            depth = start_depth + important_count
-            new_node = NeuronNode(self.node_count, element, depth)
-            new_tuple = (new_node, NeuronEdge(weight, current_node, new_node))
-
-            self.max_depth = depth if depth > self.max_depth else self.max_depth
-
-            current_node.children[element.token] = new_tuple
-
-            current_tuple = new_tuple
-
-            self.node_count += 1
-
-    def fit(
-        self,
-        data: List[List[Tuple[NDArray[Any], List[Tuple[str, float]]]]],
-    ):
-        for example_data in data:
-            for j, info in enumerate(example_data):
-                if j == 0:
-                    lines, important_index_sets = self.make_line(info)
-                else:
-                    lines, _ = self.make_line(info, important_index_sets)
-
-                for line in lines:
-                    self.add(self.root, line, graph=True)
-                    self.add(self.trie_root, line, graph=False)
-
-        self.merge_ignores()
-
-    def update_neuron_store(self, neuron_store: NeuronStore) -> None:
-        visited: Set[int] = set()  # List to keep track of visited nodes.
-        queue: List[Tuple[NeuronNode, NeuronEdge]] = []  # Initialize a queue
-
-        visited.add(self.trie_root[0].id_)
-        queue.append(self.trie_root)
-
-        while queue:
-            node, _ = queue.pop(0)
-
-            token = node.value.token
-
-            if token not in self.special_tokens:
-                neuron_store.add_neuron(
-                    node.value.activator, token, f"{self.layer}_{self.neuron}"
-                )
-
-            for token, neighbour in node.children.items():
-                new_node, _new_edge = neighbour
-                if new_node.id_ not in visited:
-                    visited.add(new_node.id_)
-                    queue.append(neighbour)
-
-    @staticmethod
-    def normalise(token: str) -> str:
-        normalised_token = (
-            token.lower() if token.istitle() and len(token) > 1 else token
-        )
-        normalised_token = (
-            normalised_token.strip()
-            if len(normalised_token) > 1 and any(c.isalpha() for c in normalised_token)
-            else normalised_token
-        )
-        return normalised_token
-
     def make_line(
         self,
-        info: Tuple[NDArray[Any], List[Tuple[str, float]]],
+        info: Tuple[NDArray[np.float32], List[Tuple[str, float]]],
         important_index_sets: Optional[List[Set[Any]]] = None,
     ) -> Tuple[List[List[Element]], List[Set[Any]]]:
         if important_index_sets is None:
@@ -254,7 +154,7 @@ class NeuronModel:
                     continue
 
                 seq_index = len(before) - j - 1
-                important_token, importance = importances_matrix[seq_index, i]
+                importance = importances_matrix[seq_index, i]
                 importance = float(importance)
 
                 important = importance > self.importance_threshold or (
@@ -306,6 +206,107 @@ class NeuronModel:
                 important_index_sets[i] = important_indices
 
         return all_lines, important_index_sets
+
+    def add(
+        self,
+        start_tuple: Tuple[NeuronNode, NeuronEdge],
+        line: List[Element],
+        graph: bool = True,
+    ) -> None:
+        current_tuple = start_tuple
+        important_count = 0
+
+        start_depth = current_tuple[0].depth
+
+        for i, element in enumerate(line):
+            if element is None and i > 0:
+                break
+
+            if element.ignore and graph:
+                continue
+
+            # Normalise token
+            element = element._replace(token=NeuronModel.normalise(element.token))
+
+            if graph:
+                # Set end value as we don't have end nodes in the graph
+                # The current node is an end if there's only one more node, as that will be the end node that we don't add
+                is_end = i == len(line) - 2
+                element = element._replace(is_end=is_end)
+
+            important_count += 1
+
+            current_node, current_edge = current_tuple
+
+            if element.token in current_node.children:
+                current_tuple = current_node.children[element.token]
+                continue
+
+            weight = 0
+
+            depth = start_depth + important_count
+            new_node = NeuronNode(self.node_count, element, depth)
+            new_tuple = (new_node, NeuronEdge(weight, current_node, new_node))
+
+            self.max_depth = depth if depth > self.max_depth else self.max_depth
+
+            current_node.children[element.token] = new_tuple
+
+            current_tuple = new_tuple
+
+            self.node_count += 1
+
+    def fit(
+        self,
+        data: List[List[Tuple[NDArray[np.float32], List[Tuple[str, float]]]]],
+    ):
+        for example_data in data:
+            for j, info in enumerate(example_data):
+                if j == 0:
+                    lines, important_index_sets = self.make_line(info)
+                else:
+                    lines, _ = self.make_line(info, important_index_sets)
+
+                for line in lines:
+                    self.add(self.root, line, graph=True)
+                    self.add(self.trie_root, line, graph=False)
+
+        self.merge_ignores()
+
+    def update_neuron_store(self, neuron_store: NeuronStore) -> None:
+        visited: Set[int] = set()  # List to keep track of visited nodes.
+        queue: List[Tuple[NeuronNode, NeuronEdge]] = []  # Initialize a queue
+
+        visited.add(self.trie_root[0].id_)
+        queue.append(self.trie_root)
+
+        while queue:
+            node, _ = queue.pop(0)
+
+            token = node.value.token
+
+            if token not in self.special_tokens:
+                neuron_store.add_neuron(
+                    node.value.activator, token, f"{self.layer}_{self.neuron}"
+                )
+
+            for token, neighbour in node.children.items():
+                new_node, _new_edge = neighbour
+                if new_node.id_ not in visited:
+                    visited.add(new_node.id_)
+                    queue.append(neighbour)
+
+    @staticmethod
+    def normalise(token: str) -> str:
+        normalised_token = (
+            token.lower() if token.istitle() and len(token) > 1 else token
+        )
+        normalised_token = (
+            normalised_token.strip()
+            if len(normalised_token) > 1 and any(c.isalpha() for c in normalised_token)
+            else normalised_token
+        )
+        return normalised_token
 
     def merge_ignores(self):
         """

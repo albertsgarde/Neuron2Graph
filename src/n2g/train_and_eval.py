@@ -233,7 +233,7 @@ def fast_measure_importance(
     masking_token=1,
     threshold: float = 0.8,
     scale_factor: float = 1,
-) -> Tuple[NDArray[Any], float, List[str], List[Tuple[str, float]], int]:
+) -> Tuple[NDArray[np.float32], float, List[str], List[Tuple[str, float]], int]:
     """Compute a measure of token importance by masking each token and measuring the drop in activation on the max activating token"""
 
     prepend_bos = True
@@ -245,7 +245,7 @@ def fast_measure_importance(
     if len(tokens[0]) > max_length:
         tokens = tokens[0, :max_length].unsqueeze(0)
 
-    importances_matrix: List[NDArray[Any]] = []
+    importances_matrix: List[NDArray[np.float32]] = []
 
     masked_prompts = tokens.repeat(len(tokens[0]) + 1, 1)
 
@@ -279,13 +279,13 @@ def fast_measure_importance(
 
     for i, masked_activations in enumerate(all_masked_activations):
         # Get importance of the given token for all tokens
-        importances_row = []
+        importances_row: List[float] = []
         for j, activation in enumerate(masked_activations):
             activation = activation.cpu().item()
             normalised_activation: float = 1 - (
                 activation / activations[j].cpu().item()
             )
-            importances_row.append((str_tokens[j], normalised_activation))
+            importances_row.append(normalised_activation)
 
         importances_matrix.append(np.array(importances_row))
 
@@ -351,8 +351,8 @@ def augment_and_return(
     base_max_act: float | None = None,
     use_index: bool = False,
     scale_factor: float = 1,
-) -> List[Tuple[NDArray[Any], List[Tuple[str, float]]]]:
-    info: List[Tuple[NDArray[Any], List[Tuple[str, float]]]] = []
+) -> List[Tuple[NDArray[np.float32], List[Tuple[str, float]]]]:
+    info: List[Tuple[NDArray[np.float32], List[Tuple[str, float]]]] = []
     (
         importances_matrix,
         initial_max_act,
