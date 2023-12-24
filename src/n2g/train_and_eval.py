@@ -19,35 +19,6 @@ from n2g.neuron_store import NeuronStore
 from .neuron_model import NeuronModel
 
 
-parser = re.compile('\{"tokens": ')
-
-
-def get_snippets(model_name: str, layer: int, neuron: int) -> List[str]:
-    """Get the max activating dataset examples for a given neuron in a model"""
-    base_url = f"https://neuroscope.io/{model_name}/{layer}/{neuron}.html"
-
-    response = requests.get(base_url)
-    webpage = response.text
-
-    parts = parser.split(webpage)
-    snippets: List[str] = []
-    for i, part in enumerate(parts):
-        if i == 0 or i % 2 != 0:
-            continue
-
-        token_str = part.split(', "values": ')[0]
-
-        tokens = json.loads(token_str)
-
-        snippet = "".join(tokens)
-
-        snippets.append(snippet)
-
-    if len(snippets) != 20:
-        raise Exception
-    return snippets
-
-
 def layer_index_to_name(layer_index: int, layer_ending: str) -> str:
     return f"blocks.{layer_index}.{layer_ending}"
 
@@ -484,8 +455,8 @@ def train_and_eval(
     layer_index: int,
     neuron: int,
     aug: FastAugmenter,
-    base_path: str,
-    model_name: str,
+    graph_dir: str,
+    samples: List[str],
     activation_matrix: NDArray[np.float32],
     layer_ending: str,
     neuron_store: NeuronStore,
@@ -499,27 +470,25 @@ def train_and_eval(
     layer_num = int(layer.split(".")[1])
     base_max_act = float(activation_matrix[layer_num, neuron])
 
-    snippets = get_snippets(model_name, layer_num, neuron)
-
     if train_indexes is None:
         split: Tuple[List[str], List[str]] = train_test_split(
-            snippets, train_size=train_proportion, random_state=random_state
+            samples, train_size=train_proportion, random_state=random_state
         )
-        train_snippets, test_snippets = split
+        train_samples, test_samples = split
     else:
-        train_snippets = [
-            snippet for i, snippet in enumerate(snippets) if i in train_indexes
+        train_samples = [
+            snippet for i, snippet in enumerate(samples) if i in train_indexes
         ]
-        test_snippets = [
-            snippet for i, snippet in enumerate(snippets) if i not in train_indexes
+        test_samples = [
+            snippet for i, snippet in enumerate(samples) if i not in train_indexes
         ]
 
-    all_train_snippets = train_snippets
+    all_train_samples = train_samples
 
     all_info: List[List[Tuple[NDArray[Any], List[Tuple[str, float]], int]]] = []
-    for i, snippet in enumerate(all_train_snippets):
+    for i, snippet in enumerate(all_train_samples):
         # if i % 10 == 0:
-        print(f"Processing {i + 1} of {len(all_train_snippets)}", flush=True)
+        print(f"Processing {i + 1} of {len(all_train_samples)}", flush=True)
 
         pruned_results = fast_prune(
             model,
@@ -546,12 +515,12 @@ def train_and_eval(
             all_info.append(info)
 
     neuron_model = NeuronModel(layer_num, neuron, neuron_store)
-    _ = neuron_model.fit(all_info, base_path, model_name)
+    _ = neuron_model.fit(all_info, graph_dir)
 
     print("Fitted model", flush=True)
 
     max_test_data: List[Tuple[List[str], torch.FloatTensor]] = []
-    for snippet in test_snippets:
+    for snippet in test_samples:
         tokens = model.to_tokens(snippet, prepend_bos=True)
         str_tokens = typing.cast(
             List[str], model.to_str_tokens(snippet, prepend_bos=True)

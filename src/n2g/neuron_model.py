@@ -182,8 +182,7 @@ class NeuronModel:
     def fit(
         self,
         data: List[List[Tuple[NDArray[Any], List[Tuple[str, float]], int]]],
-        base_path: str,
-        model_name: str,
+        graph_dir: str,
     ):
         for example_data in data:
             for j, info in enumerate(example_data):
@@ -196,17 +195,10 @@ class NeuronModel:
                     self.add(self.root, line, graph=True)
                     self.add(self.trie_root, line, graph=False)
 
-        self.build(self.root, base_path, model_name)
+        self.build(self.root, graph_dir)
         self.merge_ignores()
 
         self.save_neurons()
-
-        print("Paths after merge", flush=True)
-        paths = []
-        for path in self.trie_root[0].paths():
-            paths.append(path)
-
-        return paths
 
     def save_neurons(self):
         visited = set()  # List to keep track of visited nodes.
@@ -471,8 +463,7 @@ class NeuronModel:
     def build(
         self,
         start_node: Tuple[NeuronNode, NeuronEdge],
-        base_path: str,
-        model_name: str,
+        graph_dir: str,
         graph: bool = True,
     ):
         """Build a graph to visualise"""
@@ -598,17 +589,6 @@ class NeuronModel:
         for depth, subgraph in depth_to_subgraph.items():
             self.net.subgraph(subgraph)
 
-        path_parts = ["neuron_graphs", model_name]
-
-        if self.folder_name is not None:
-            path_parts.append(self.folder_name)
-
-        save_path = base_path
-        for path_part in path_parts:
-            save_path += f"/{path_part}"
-            if not os.path.exists(save_path):
-                os.mkdir(save_path)
-
-        filename = f"{self.layer}_{self.neuron}"
-        with open(f"{save_path}/{filename}", "w") as f:
+        file_path = os.path.join(graph_dir, f"{self.layer}_{self.neuron}")
+        with open(file_path, "w") as f:
             f.write(self.net.source)

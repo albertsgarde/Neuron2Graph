@@ -54,13 +54,17 @@ def run_training(
         for i, neuron_index in enumerate(neuron_indices):
             print(f"{layer_index=} {neuron_index=}", flush=True)
             try:
+                training_samples = n2g.scrape_neuroscope_samples(
+                    model_name, layer_index, neuron_index
+                )
+
                 stats = n2g.train_and_eval(
                     model,
                     layer_index,
                     neuron_index,
                     augmenter,
-                    output_dir,
-                    model_name,
+                    graph_dir,
+                    training_samples,
                     activation_matrix,
                     layer_ending,
                     neuron_store,
