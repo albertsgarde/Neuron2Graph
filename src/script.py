@@ -53,10 +53,10 @@ if __name__ == "__main__":
     And it will save the neuron store in neuron_graphs/model_name/neuron_store.json
     """
 
-    model_name, layer_ending, layers, neurons_per_layer = cmd_arguments()
+    model_name, layer_ending, layer_indices, neurons_per_layer = cmd_arguments()
 
     print(
-        f"Running N2G for model {model_name} layers {layers}. Using layer ending {layer_ending} and {neurons_per_layer} neurons per layer."
+        f"Running N2G for model {model_name} layers {layer_indices}. Using layer ending {layer_ending} and {neurons_per_layer} neurons per layer."
     )
 
     # ================ Setup ================
@@ -93,8 +93,7 @@ if __name__ == "__main__":
     word_tokenizer = WordTokenizer(set(), stick_tokens)
     fast_aug = FastAugmenter(aug_model, aug_tokenizer, word_tokenizer, word_to_casings)
 
-    if not os.path.exists(f"{base_path}/neuron_graphs"):
-        os.mkdir(f"{base_path}/neuron_graphs")
+    output_dir = os.path.join(base_path, "output", model_name)
 
     # ================ Run ================
     # Run training for the specified layers and neurons
@@ -102,9 +101,9 @@ if __name__ == "__main__":
     n2g.run_training(
         model,
         # List of layers to run for
-        layers,
+        layer_indices,
         # Number of neurons in each layer
-        neurons_per_layer,
+        list(range(neurons_per_layer)),
         # Layer ending for the model
         layer_ending,
         # Augmenter
@@ -114,7 +113,7 @@ if __name__ == "__main__":
         # Model name
         model_name,
         # Base path
-        base_path,
+        output_dir,
     )
 
-    n2g.get_summary_stats(f"{base_path}/neuron_graphs/{model_name}/stats.json")
+    n2g.get_summary_stats(os.path.join(output_dir, "stats.json"))
