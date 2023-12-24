@@ -73,8 +73,6 @@ class NeuronModel:
         neuron: int,
         activation_threshold: float = 0.5,
         importance_threshold: float = 0.75,
-        folder_name: Optional[str] = None,
-        **kwargs,
     ):
         self.layer = layer
         self.neuron = neuron
@@ -106,19 +104,9 @@ class NeuronModel:
         )
         self.activation_threshold = activation_threshold
         self.importance_threshold = importance_threshold
-        self.net = Digraph(
-            graph_attr={
-                "rankdir": "RL",
-                "splines": "spline",
-                "ranksep": "1.5",
-                "nodesep": "0.2",
-            },
-            node_attr={"fixedsize": "true", "width": "2", "height": "0.75"},
-        )
         self.node_count = 0
         self.trie_node_count = 0
         self.max_depth = 0
-        self.folder_name = folder_name
 
     def __call__(self, tokens_arr: List[List[str]]) -> List[List[float]]:
         return self.forward(tokens_arr)
@@ -128,7 +116,7 @@ class NeuronModel:
         start_tuple: Tuple[NeuronNode, NeuronEdge],
         line: List[Element],
         graph: bool = True,
-    ):
+    ) -> None:
         current_tuple = start_tuple
         important_count = 0
 
@@ -142,7 +130,7 @@ class NeuronModel:
                 continue
 
             # Normalise token
-            element = element._replace(token=self.normalise(element.token))
+            element = element._replace(token=NeuronModel.normalise(element.token))
 
             if graph:
                 # Set end value as we don't have end nodes in the graph
@@ -153,9 +141,6 @@ class NeuronModel:
             important_count += 1
 
             current_node, current_edge = current_tuple
-
-            if not current_node.value.ignore:
-                prev_important_node = current_node
 
             if element.token in current_node.children:
                 current_tuple = current_node.children[element.token]
@@ -175,8 +160,6 @@ class NeuronModel:
 
             self.node_count += 1
 
-        return current_tuple
-
     def fit(
         self,
         data: List[List[Tuple[NDArray[Any], List[Tuple[str, float]], int]]],
@@ -193,7 +176,11 @@ class NeuronModel:
                     self.add(self.root, line, graph=True)
                     self.add(self.trie_root, line, graph=False)
 
-        self.build(self.root, graph_dir)
+        net = self.graphviz()
+
+        file_path = os.path.join(graph_dir, f"{self.layer}_{self.neuron}")
+        with open(file_path, "w") as f:
+            f.write(net.source)
         self.merge_ignores()
 
     def update_neuron_store(self, neuron_store: NeuronStore) -> None:
@@ -449,18 +436,15 @@ class NeuronModel:
     def clamp(arr: Tuple[int, int, int]):
         return [max(0, min(x, 255)) for x in arr]
 
-    def build(
+    def graphviz(
         self,
-        start_node: Tuple[NeuronNode, NeuronEdge],
-        graph_dir: str,
-        graph: bool = True,
-    ):
+    ) -> Digraph:
         """Build a graph to visualise"""
         visited = set()  # List to keep track of visited nodes.
         queue: List[Tuple[NeuronNode, NeuronEdge]] = []  # Initialize a queue
 
-        visited.add(start_node[0].id_)
-        queue.append(start_node)
+        visited.add(self.root[0].id_)
+        queue.append(self.root)
 
         zero_width = "\u200b"
 
@@ -487,6 +471,16 @@ class NeuronModel:
                     visited.add(new_node.id_)
                     queue.append(neighbour)
 
+        net = Digraph(
+            graph_attr={
+                "rankdir": "RL",
+                "splines": "spline",
+                "ranksep": "1.5",
+                "nodesep": "0.2",
+            },
+            node_attr={"fixedsize": "true", "width": "2", "height": "0.75"},
+        )
+
         for node, edge in node_edge_tuples:
             token = node.value.token
             depth = node.depth
@@ -499,12 +493,6 @@ class NeuronModel:
                 depth_to_subgraph[depth].attr(pencolor="white", penwidth="3")
 
             token_by_layer_count[depth][token] += 1
-
-            if not graph:
-                # This is a horrible hack to allow us to have a dict with the "same" token as multiple keys - by adding zero width spaces the tokens look the same but are actually different. This allows us to display a trie rather than a node-collapsed graph
-                seen_count = token_by_layer_count[depth][token] - 1
-                add = zero_width * seen_count
-                token += add
 
             if token not in tokens_by_layer[depth]:
                 tokens_by_layer[depth][token] = str(node_count)
@@ -572,12 +560,10 @@ class NeuronModel:
                 graph_parent_id = node_id_to_graph_id[edge.parent.id_]
                 edge_tuple = (graph_parent_id, graph_node_id)
                 if edge_tuple not in added_edges:
-                    self.net.edge(*edge_tuple, penwidth="3", dir="back")
+                    net.edge(*edge_tuple, penwidth="3", dir="back")
                     added_edges.add(edge_tuple)
 
         for depth, subgraph in depth_to_subgraph.items():
-            self.net.subgraph(subgraph)
+            net.subgraph(subgraph)
 
-        file_path = os.path.join(graph_dir, f"{self.layer}_{self.neuron}")
-        with open(file_path, "w") as f:
-            f.write(self.net.source)
+        return net
