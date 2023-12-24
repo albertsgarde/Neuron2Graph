@@ -71,7 +71,6 @@ class NeuronModel:
         self,
         layer: int,
         neuron: int,
-        neuron_store: NeuronStore,
         activation_threshold: float = 0.5,
         importance_threshold: float = 0.75,
         folder_name: Optional[str] = None,
@@ -79,7 +78,6 @@ class NeuronModel:
     ):
         self.layer = layer
         self.neuron = neuron
-        self.neuron_store = neuron_store
 
         self.root_token = "**ROOT**"
         self.ignore_token = "**IGNORE**"
@@ -198,9 +196,7 @@ class NeuronModel:
         self.build(self.root, graph_dir)
         self.merge_ignores()
 
-        self.save_neurons()
-
-    def save_neurons(self) -> None:
+    def update_neuron_store(self, neuron_store: NeuronStore) -> None:
         visited: Set[int] = set()  # List to keep track of visited nodes.
         queue: List[Tuple[NeuronNode, NeuronEdge]] = []  # Initialize a queue
 
@@ -213,16 +209,9 @@ class NeuronModel:
             token = node.value.token
 
             if token not in self.special_tokens:
-                add_dict = (
-                    self.neuron_store.store["activating"]
-                    if node.value.activator
-                    else self.neuron_store.store["important"]
+                neuron_store.add_neuron(
+                    node.value.activator, token, f"{self.layer}_{self.neuron}"
                 )
-                if token not in add_dict:
-                    add_dict[token] = set()
-                else:
-                    add_dict[token] = set(add_dict[token])
-                add_dict[token].add(f"{self.layer}_{self.neuron}")
 
             for token, neighbour in node.children.items():
                 new_node, _new_edge = neighbour

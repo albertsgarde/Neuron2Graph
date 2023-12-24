@@ -45,7 +45,11 @@ def run_training(
 
     graph_dir, neuron_store_path, stats_path = setup_paths(output_dir)
 
-    neuron_store = NeuronStore(neuron_store_path)
+    neuron_store = (
+        NeuronStore.load(neuron_store_path)
+        if os.path.exists(neuron_store_path)
+        else NeuronStore()
+    )
 
     all_stats = get_stats(stats_path)
 
@@ -76,6 +80,6 @@ def run_training(
                 print(traceback.format_exc(), flush=True)
                 print("Failed", flush=True)
 
-    neuron_store.save()
+    neuron_store.save(neuron_store_path)
     with open(stats_path, "w") as ofh:
         json.dump(all_stats, ofh, indent=2)

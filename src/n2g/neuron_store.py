@@ -1,57 +1,45 @@
+from __future__ import annotations
 from collections import Counter, defaultdict
 import json
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Self, Set
 
 
 class NeuronStore:
-    def __init__(self, path: str):
-        if not os.path.exists(path):
-            neuron_store: Dict[str, Dict[Any, Any]] = {
-                "activating": {},
-                "important": {},
-            }
-            with open(path, "w") as ofh:
-                json.dump(neuron_store, ofh, indent=2, ensure_ascii=False)
+    def __init__(self) -> None:
+        self._activating: Dict[str, Set[str]] = {}
+        self._important: Dict[str, Set[str]] = {}
 
+    @staticmethod
+    def _store_to_sets(store: Dict[str, List[str]]) -> Dict[str, Set[str]]:
+        return {token: set(indices) for token, indices in store.items()}
+
+    @staticmethod
+    def _store_to_lists(store: Dict[str, Set[str]]) -> Dict[str, List[str]]:
+        return {token: list(indices) for token, indices in store.items()}
+
+    @staticmethod
+    def load(path: str) -> NeuronStore:
         with open(path) as file:
             store = json.load(file)
-            self.store = {
-                token_type: {token: set(info) for token, info in token_dict.items()}
-                for token_type, token_dict in store.items()
+            activating: Dict[str, List[str]] = store["activating"]
+            important: Dict[str, List[str]] = store["important"]
+
+            result = NeuronStore()
+            result._activating = NeuronStore._store_to_sets(activating)
+            result._important = NeuronStore._store_to_sets(important)
+            return result
+
+    def save(self, path: str) -> None:
+        with open(path, "w") as ofh:
+            store = {
+                "activating": NeuronStore._store_to_lists(self._activating),
+                "important": NeuronStore._store_to_lists(self._important),
             }
+            json.dump(store, ofh, indent=2, ensure_ascii=False)
 
-        self.path = path
-        self._count_tokens()
-        self._by_neuron()
-
-    def _by_neuron(self):
-        self.neuron_to_tokens = {}
-        for token_type, token_dict in self.store.items():
-            for token, neurons in token_dict.items():
-                for neuron in neurons:
-                    if neuron not in self.neuron_to_tokens:
-                        self.neuron_to_tokens[neuron] = {
-                            "activating": set(),
-                            "important": set(),
-                        }
-                    self.neuron_to_tokens[neuron][token_type].add(token)
-
-    def _count_tokens(self):
-        self.neuron_individual_token_counts = defaultdict(Counter)
-        self.neuron_total_token_counts = Counter()
-        for token_type, token_dict in self.store.items():
-            for token, neurons in token_dict.items():
-                for neuron in neurons:
-                    self.neuron_individual_token_counts[neuron][token] += 1
-                    self.neuron_total_token_counts[neuron] += 1
-
-    def _store_to_lists(self) -> Dict[Any, Dict[Any, List[Any]]]:
-        return {
-            token_type: {token: list(set(info)) for token, info in token_dict.items()}
-            for token_type, token_dict in self.store.items()
-        }
-
-    def save(self):
-        with open(self.path, "w") as ofh:
-            json.dump(self._store_to_lists(), ofh, indent=2, ensure_ascii=False)
+    def add_neuron(self, activating: bool, token: str, neuron: str) -> None:
+        store = self._activating if activating else self._important
+        if not token in store.keys():
+            store[token] = set()
+        store[token].add(neuron)

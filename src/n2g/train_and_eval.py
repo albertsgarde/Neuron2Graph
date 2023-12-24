@@ -514,8 +514,9 @@ def train_and_eval(
             )
             all_info.append(info)
 
-    neuron_model = NeuronModel(layer_num, neuron, neuron_store)
+    neuron_model = NeuronModel(layer_num, neuron)
     _ = neuron_model.fit(all_info, graph_dir)
+    neuron_model.update_neuron_store(neuron_store)
 
     print("Fitted model", flush=True)
 
