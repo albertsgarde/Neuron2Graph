@@ -190,7 +190,7 @@ def augment(
     exclusion_threshold: float = -0.5,
     n: int = 5,
     exclude_stopwords: bool = False,
-) -> Tuple[List[Tuple[str, float, float]], List[Tuple[str, float, float]]]:
+) -> Tuple[List[str], List[str]]:
     """Generate variations of a prompt using an augmenter"""
     prepend_bos = True
     tokens = model.to_tokens(prompt, prepend_bos=prepend_bos)
@@ -208,8 +208,8 @@ def augment(
     initial_argmax = typing.cast(int, torch.argmax(activations).cpu().item())
     max_char_position = len("".join(str_tokens[int(prepend_bos) : initial_argmax + 1]))
 
-    positive_prompts: List[Tuple[str, float, float]] = [(prompt, initial_max, 1.0)]
-    negative_prompts: List[Tuple[str, float, float]] = []
+    positive_prompts: List[str] = [prompt]
+    negative_prompts: List[str] = []
 
     if n == 0:
         return positive_prompts, negative_prompts
@@ -245,8 +245,8 @@ def augment(
         proportion_drop: float = (aug_max - initial_max) / initial_max
 
         if proportion_drop >= inclusion_threshold:
-            positive_prompts.append((aug_prompt, aug_max, proportion_drop))
+            positive_prompts.append(aug_prompt)
         elif proportion_drop < exclusion_threshold:
-            negative_prompts.append((aug_prompt, aug_max, proportion_drop))
+            negative_prompts.append(aug_prompt)
 
     return positive_prompts, negative_prompts

@@ -63,7 +63,7 @@ def fast_prune(
     max_post_context_tokens: int = 5,
     skip_threshold: int = 0,
     skip_interval: int = 5,
-) -> List[Tuple[str, int, float, float]]:
+) -> List[Tuple[str, float, float]]:
     """Prune an input prompt to the shortest string that preserves x% of neuron activation on the most activating token."""
 
     prepend_bos = True
@@ -91,7 +91,6 @@ def fast_prune(
     strong_indices = strong_indices.cpu()
 
     pruned_sentences: List[str] = []
-    final_max_indices: List[int] = []
     initial_maxes: List[float] = []
     truncated_maxes: List[float] = []
 
@@ -113,7 +112,6 @@ def fast_prune(
         post_context = relevant_str_tokens[initial_argmax + 1 :]
 
         shortest_successful_prompt: Optional[str] = None
-        final_max_index: Optional[int] = None
 
         truncated_prompts: List[str] = []
         added_tokens: List[int] = []
@@ -158,13 +156,9 @@ def fast_prune(
                 truncated_argmax = (
                     torch.argmax(truncated_activations).cpu().item() + num_added_tokens
                 )
-                final_max_index = typing.cast(
-                    int, torch.argmax(truncated_activations).cpu().item()
-                )
 
                 if prepend_bos:
                     truncated_argmax -= 1
-                    final_max_index -= 1
                 truncated_max = torch.max(truncated_activations).cpu().item()
 
                 shortest_prompt = truncated_batch[j]
@@ -192,22 +186,17 @@ def fast_prune(
 
         if shortest_successful_prompt is None:
             raise Exception("No successful prompt found")
-        if final_max_index is None:
-            raise Exception("Error in above code")
 
         pruned_sentence: str = shortest_successful_prompt
 
         pruned_sentence += "".join(post_context[:max_post_context_tokens])
 
         pruned_sentences.append(pruned_sentence)
-        final_max_indices.append(final_max_index)
         initial_maxes.append(initial_max)
         assert truncated_max is not None, "Truncated max is None"
         truncated_maxes.append(truncated_max)
 
-    return list(
-        zip(pruned_sentences, final_max_indices, initial_maxes, truncated_maxes)
-    )
+    return list(zip(pruned_sentences, initial_maxes, truncated_maxes))
 
 
 def fast_measure_importance(
@@ -366,14 +355,14 @@ def augment_and_return(
         important_tokens=set(important_tokens),
     )
 
-    for prompt, _activation, _change in positive_prompts:
+    for prompt in positive_prompts:
         if use_index:
             (
                 importances_matrix,
-                max_act,
+                _max_act,
                 _,
                 tokens_and_activations,
-                max_index,
+                _max_index,
             ) = fast_measure_importance(
                 model,
                 layer,
@@ -386,10 +375,10 @@ def augment_and_return(
         else:
             (
                 importances_matrix,
-                max_act,
+                _max_act,
                 _,
                 tokens_and_activations,
-                max_index,
+                _max_index,
             ) = fast_measure_importance(
                 model,
                 layer,
@@ -400,14 +389,14 @@ def augment_and_return(
             )
         info.append((importances_matrix, tokens_and_activations))
 
-    for prompt, activation, change in negative_prompts:
+    for prompt in negative_prompts:
         if use_index:
             (
                 importances_matrix,
-                max_act,
+                _max_act,
                 _,
                 tokens_and_activations,
-                max_index,
+                _max_index,
             ) = fast_measure_importance(
                 model,
                 layer,
@@ -420,10 +409,10 @@ def augment_and_return(
         else:
             (
                 importances_matrix,
-                max_act,
+                _max_act,
                 _,
                 tokens_and_activations,
-                max_index,
+                _max_index,
             ) = fast_measure_importance(
                 model,
                 layer,
@@ -451,14 +440,14 @@ def train_and_eval(
     fire_threshold: float = 0.5,
     random_state: int = 0,
     train_indexes: Optional[List[int]] = None,
-) -> dict:
+) -> Dict[str, Any]:
     layer = layer_index_to_name(layer_index, layer_ending)
 
     layer_num = int(layer.split(".")[1])
     base_max_act = float(activation_matrix[layer_num, neuron])
 
     if train_indexes is None:
-        split: Tuple[List[str], List[str]] = train_test_split(
+        split: Tuple[List[str], List[str]] = train_test_split(  # type: ignore
             samples, train_size=train_proportion, random_state=random_state
         )
         train_samples, test_samples = split
@@ -484,11 +473,8 @@ def train_and_eval(
             snippet,
         )
 
-        for pruned_prompt, _, initial_max_act, truncated_max_act in pruned_results:
+        for pruned_prompt, initial_max_act, truncated_max_act in pruned_results:
             scale_factor = initial_max_act / truncated_max_act
-
-            if pruned_prompt is None:
-                continue
 
             info = augment_and_return(
                 model,

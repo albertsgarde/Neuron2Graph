@@ -1,12 +1,11 @@
 import json
 import os
 import random
-import time
 import traceback
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 import numpy as np
 from numpy.typing import NDArray
-from transformer_lens import HookedTransformer
+from transformer_lens.HookedTransformer import HookedTransformer
 
 import n2g
 from n2g.fast_augmenter import FastAugmenter
@@ -23,7 +22,7 @@ def setup_paths(output_dir: str) -> Tuple[str, str, str]:
     return graph_dir, neuron_store_path, stats_path
 
 
-def get_stats(stats_path: str) -> Dict[int, Dict[int, dict]]:
+def get_stats(stats_path: str) -> Dict[int, Dict[int, Dict[Any, Any]]]:
     if os.path.exists(stats_path):
         with open(stats_path) as ifh:
             return json.load(ifh)
@@ -55,7 +54,7 @@ def run_training(
 
     for layer_index in layer_indices:
         all_stats[layer_index] = {}
-        for i, neuron_index in enumerate(neuron_indices):
+        for neuron_index in neuron_indices:
             print(f"{layer_index=} {neuron_index=}", flush=True)
             try:
                 training_samples = n2g.scrape_neuroscope_samples(
@@ -76,7 +75,7 @@ def run_training(
 
                 all_stats[layer_index][neuron_index] = stats
 
-            except Exception as e:
+            except Exception:
                 print(traceback.format_exc(), flush=True)
                 print("Failed", flush=True)
 
