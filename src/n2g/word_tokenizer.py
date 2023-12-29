@@ -21,7 +21,7 @@ class WordTokenizer:
 
     def tokenize(self, text: str) -> List[str]:
         """Tokenize text, preserving all characters"""
-        tokens = []
+        tokens: List[str] = []
         current_token = ""
         for char in text:
             if self.is_split(char):
@@ -35,7 +35,7 @@ class WordTokenizer:
         return tokens
 
 
-splitter = re.compile("[\.!\\n]")
+splitter = re.compile("[\\.!\\n]")  # ignore: type
 
 
 def sentence_tokenizer(

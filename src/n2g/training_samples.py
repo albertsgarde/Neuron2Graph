@@ -4,7 +4,7 @@ from typing import List
 
 import requests
 
-parser = re.compile('\{"tokens": ')
+parser = re.compile('\\{"tokens": ')
 
 
 def scrape_neuroscope_samples(model_name: str, layer: int, neuron: int) -> List[str]:

@@ -2,7 +2,7 @@ from collections import defaultdict
 import json
 import pprint
 import random
-from typing import Dict, List, Set
+from typing import Dict, List
 import typing
 import numpy as np
 
@@ -10,13 +10,11 @@ import numpy as np
 def get_summary_stats(
     path: str, verbose: bool = True
 ) -> List[Dict[str, Dict[str, float]]]:
-    summary_stats = []
-    summary_stds = []
+    summary_stats: List[Dict[str, Dict[str, float]]] = []
+    summary_stds: List[Dict[str, Dict[str, float]]] = []
 
     with open(path) as ifh:
         stats: Dict[str, Dict[str, Dict[str, Dict[str, float]]]] = json.load(ifh)
-
-    missing = 0
 
     random.seed(0)
 
@@ -24,7 +22,7 @@ def get_summary_stats(
 
     precision_case = 0
 
-    for layer, layer_stats in stats.items():
+    for _layer, layer_stats in stats.items():
         eligible_neurons = set(
             [
                 neuron

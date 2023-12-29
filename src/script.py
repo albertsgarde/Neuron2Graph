@@ -1,4 +1,5 @@
 import json
+import typing
 from typing import List, Tuple
 import os
 import sys
@@ -6,9 +7,8 @@ import sys
 import numpy as np
 
 import torch
-from transformers import AutoModelForMaskedLM  # type: ignore
-from transformers import AutoTokenizer
-from transformer_lens import HookedTransformer
+from transformers import AutoModelForMaskedLM, AutoTokenizer, PreTrainedTokenizer, PreTrainedModel  # type: ignore
+from transformer_lens.HookedTransformer import HookedTransformer
 
 import n2g
 from n2g import FastAugmenter, WordTokenizer
@@ -62,7 +62,7 @@ if __name__ == "__main__":
     # ================ Setup ================
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     print(f"Device: {device}", flush=True)
-    model = HookedTransformer.from_pretrained(model_name).to(device)
+    model: HookedTransformer = HookedTransformer.from_pretrained(model_name).to(device)  # type: ignore
 
     base_path = os.path.abspath(
         os.path.join(os.path.dirname(os.path.abspath(__file__)))
@@ -83,8 +83,15 @@ if __name__ == "__main__":
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     print(f"Device: {device}", flush=True)
     aug_model_checkpoint = "distilbert-base-uncased"
-    aug_model = AutoModelForMaskedLM.from_pretrained(aug_model_checkpoint).to(device)
-    aug_tokenizer = AutoTokenizer.from_pretrained(aug_model_checkpoint)
+    aug_model: PreTrainedModel = typing.cast(
+        PreTrainedModel,
+        AutoModelForMaskedLM.from_pretrained(aug_model_checkpoint).to(  # type: ignore
+            device
+        ),
+    )
+    aug_tokenizer: PreTrainedTokenizer = typing.cast(
+        PreTrainedTokenizer, AutoTokenizer.from_pretrained(aug_model_checkpoint)  # type: ignore
+    )
 
     with open(f"{base_path}/data/word_to_casings.json", encoding="utf-8") as ifh:
         word_to_casings = json.load(ifh)
