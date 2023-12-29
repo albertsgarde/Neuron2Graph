@@ -1,18 +1,15 @@
-import json
 import math
 import os
-import re
-from typing import Any, List, Optional, Tuple, TypeVar
+from typing import Any, List, Optional, Tuple, TypeVar, Dict
 import typing
 import numpy as np
 from numpy.typing import NDArray
-import requests
-from sklearn.metrics import classification_report  # type: ignore
+from sklearn import metrics  # type: ignore
 from sklearn.model_selection import train_test_split  # type: ignore
 import torch
-from torch import Tensor
-from transformer_lens import HookedTransformer
-from jaxtyping import Int, Float
+from torch import Tensor, FloatTensor
+from transformer_lens.HookedTransformer import HookedTransformer
+from jaxtyping import Int
 
 import n2g
 from n2g.fast_augmenter import FastAugmenter
@@ -31,8 +28,8 @@ def batch(arr: List[T], batch_size: int) -> List[List[T]]:
     n = math.ceil(len(arr) / batch_size)
 
     extras = len(arr) - (batch_size * n)
-    groups = []
-    group = []
+    groups: List[List[T]] = []
+    group: List[T] = []
     added_extra = False
     for element in arr:
         group.append(element)
@@ -71,44 +68,38 @@ def fast_prune(
 
     prepend_bos = True
     tokens: Int[Tensor, "batch_pos"] = model.to_tokens(prompt, prepend_bos=prepend_bos)
-    str_tokens: List[str] = typing.cast(
-        List[str], model.to_str_tokens(prompt, prepend_bos=prepend_bos)
-    )
+    str_tokens: List[str] = model.to_str_tokens(prompt, prepend_bos=prepend_bos)  # type: ignore
 
     if len(tokens[0]) > max_length:
         tokens = tokens[0, :max_length].unsqueeze(0)
 
-    logits, cache = model.run_with_cache(tokens)
+    _logits, cache = model.run_with_cache(tokens)  # type: ignore
     activations = cache[layer][0, :, neuron].cpu()
 
     full_initial_max = torch.max(activations).cpu().item()
 
     (
         sentences,
-        sentence_to_token_indices,
+        _sentence_to_token_indices,
         token_to_sentence_indices,
     ) = n2g.word_tokenizer.sentence_tokenizer(str_tokens)
 
-    strong_indices = torch.where(
+    strong_indices: Tensor = torch.where(  # type: ignore
         activations >= token_activation_threshold * full_initial_max
     )[0]
     strong_activations = activations[strong_indices].cpu()
     strong_indices = strong_indices.cpu()
-
-    strong_sentence_indices = [
-        token_to_sentence_indices[index.item()] for index in strong_indices
-    ]
 
     pruned_sentences: List[str] = []
     final_max_indices: List[int] = []
     initial_maxes: List[float] = []
     truncated_maxes: List[float] = []
 
-    for strong_sentence_index, initial_argmax, initial_max in zip(
-        strong_sentence_indices, strong_indices, strong_activations
+    for initial_argmax_tensor, initial_max_tensor in zip(
+        strong_indices, strong_activations
     ):
-        initial_argmax = initial_argmax.item()
-        initial_max = initial_max.item()
+        initial_argmax: int = initial_argmax_tensor.item()  # type: ignore
+        initial_max: float = initial_max_tensor.item()
 
         max_sentence_index = token_to_sentence_indices[initial_argmax]
         relevant_str_tokens = [
@@ -130,7 +121,7 @@ def fast_prune(
         count = 0
         full_prior = prior_context[: max(0, initial_argmax - window + 1)]
 
-        for i, str_token in reversed(list(enumerate(full_prior))):
+        for i in reversed(range(len(full_prior))):
             count += 1
 
             if count > cutoff:
@@ -152,12 +143,14 @@ def fast_prune(
         batched_added_tokens = batch(added_tokens, batch_size)
 
         finished = False
+
+        truncated_max: Optional[float] = None
         for i, (truncated_batch, added_tokens_batch) in enumerate(
             zip(batched_truncated_prompts, batched_added_tokens)
         ):
             truncated_tokens = model.to_tokens(truncated_batch, prepend_bos=prepend_bos)
 
-            logits, cache = model.run_with_cache(truncated_tokens)
+            _logits, cache = model.run_with_cache(truncated_tokens)  # type: ignore
             all_truncated_activations = cache[layer][:, :, neuron].cpu()
 
             for j, truncated_activations in enumerate(all_truncated_activations):
@@ -172,14 +165,9 @@ def fast_prune(
                 if prepend_bos:
                     truncated_argmax -= 1
                     final_max_index -= 1
-                truncated_max: float = torch.max(truncated_activations).cpu().item()
+                truncated_max = torch.max(truncated_activations).cpu().item()
 
                 shortest_prompt = truncated_batch[j]
-
-                if not shortest_prompt.startswith("<|endoftext|>"):
-                    truncated_str_tokens = model.to_str_tokens(
-                        truncated_batch[j], prepend_bos=False
-                    )
 
                 if (
                     truncated_argmax == initial_argmax
@@ -209,12 +197,12 @@ def fast_prune(
 
         pruned_sentence: str = shortest_successful_prompt
 
-        if max_post_context_tokens is not None:
-            pruned_sentence += "".join(post_context[:max_post_context_tokens])
+        pruned_sentence += "".join(post_context[:max_post_context_tokens])
 
         pruned_sentences.append(pruned_sentence)
         final_max_indices.append(final_max_index)
         initial_maxes.append(initial_max)
+        assert truncated_max is not None, "Truncated max is None"
         truncated_maxes.append(truncated_max)
 
     return list(
@@ -230,7 +218,7 @@ def fast_measure_importance(
     initial_argmax: int | None = None,
     max_length: int = 1024,
     max_activation: float | None = None,
-    masking_token=1,
+    masking_token: int = 1,
     threshold: float = 0.8,
     scale_factor: float = 1,
 ) -> Tuple[NDArray[np.float32], float, List[str], List[Tuple[str, float]], int]:
@@ -238,9 +226,7 @@ def fast_measure_importance(
 
     prepend_bos = True
     tokens = model.to_tokens(prompt, prepend_bos=prepend_bos)
-    str_tokens: List[str] = typing.cast(
-        List[str], model.to_str_tokens(prompt, prepend_bos=prepend_bos)
-    )
+    str_tokens: List[str] = model.to_str_tokens(prompt, prepend_bos=prepend_bos)  # type: ignore
 
     if len(tokens[0]) > max_length:
         tokens = tokens[0, :max_length].unsqueeze(0)
@@ -252,7 +238,7 @@ def fast_measure_importance(
     for i in range(1, len(masked_prompts)):
         masked_prompts[i, i - 1] = masking_token
 
-    logits, cache = model.run_with_cache(masked_prompts)
+    _logits, cache = model.run_with_cache(masked_prompts)  # type: ignore
     all_masked_activations = cache[layer][1:, :, neuron].cpu()
 
     activations = cache[layer][0, :, neuron].cpu()
@@ -311,7 +297,7 @@ def evaluate(
     neuron_model: NeuronModel,
     data: List[Tuple[List[str], torch.FloatTensor]],
     fire_threshold: float,
-) -> dict:
+) -> Dict[str, Any]:
     y: List[int] = []
     y_pred: List[int] = []
     y_act: NDArray[np.float32] = np.array([])
@@ -330,13 +316,13 @@ def evaluate(
         y_pred.extend(pred_firings)
         y.extend(firings)
 
-    print(classification_report(y, y_pred), flush=True)
-    report = classification_report(y, y_pred, output_dict=True)
+    print(metrics.classification_report(y, y_pred), flush=True)  # type: ignore
+    report: Dict[str, Any] = metrics.classification_report(y, y_pred, output_dict=True)  # type: ignore
 
     act_diff = y_pred_act - y_act
-    mse = np.mean(np.power(act_diff, 2))
-    variance = np.var(y_act)
-    correlation = 1 - (mse / variance)
+    mse: float = np.mean(np.power(act_diff, 2))  # type: ignore
+    variance: float = np.var(y_act)  # type: ignore
+    correlation: float = 1.0 - (mse / variance)
 
     report["correlation"] = correlation
     return report
@@ -380,7 +366,7 @@ def augment_and_return(
         important_tokens=set(important_tokens),
     )
 
-    for i, (prompt, activation, change) in enumerate(positive_prompts):
+    for prompt, _activation, _change in positive_prompts:
         if use_index:
             (
                 importances_matrix,
@@ -527,15 +513,17 @@ def train_and_eval(
 
     print("Fitted model", flush=True)
 
-    max_test_data: List[Tuple[List[str], torch.FloatTensor]] = []
+    max_test_data: List[Tuple[List[str], FloatTensor]] = []
     for snippet in test_samples:
         tokens = model.to_tokens(snippet, prepend_bos=True)
-        str_tokens = typing.cast(
-            List[str], model.to_str_tokens(snippet, prepend_bos=True)
+        str_tokens: List[str] = typing.cast(
+            List[str], model.to_str_tokens(snippet, prepend_bos=True)  # type: ignore
         )
-        logits, cache = model.run_with_cache(tokens)
-        activations: Float[Tensor] = cache[layer][0, :, neuron].cpu()  # type: ignore
-        max_test_data.append((str_tokens, activations / base_max_act))
+        _logits, cache = model.run_with_cache(tokens)  # type: ignore
+        activations: FloatTensor = cache[layer][0, :, neuron].cpu()  # type: ignore
+        max_test_data.append(
+            (str_tokens, typing.cast(FloatTensor, activations / base_max_act))
+        )
 
     print("Max Activating Evaluation Data", flush=True)
     try:

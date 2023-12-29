@@ -5,7 +5,7 @@ from n2g.word_tokenizer import WordTokenizer
 
 import nltk  # type: ignore
 
-nltk.download("stopwords")
+nltk.download("stopwords")  # type: ignore
 from nltk.corpus import stopwords  # type: ignore
 from string import punctuation
 import copy
@@ -14,8 +14,8 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 
-from transformer_lens import HookedTransformer
-from transformers import AutoModelForMaskedLM, AutoTokenizer  # type: ignore
+from transformer_lens.HookedTransformer import HookedTransformer
+from transformers import PreTrainedModel, PreTrainedTokenizer  # type: ignore
 
 
 class FastAugmenter:
@@ -23,16 +23,16 @@ class FastAugmenter:
 
     def __init__(
         self,
-        model: AutoModelForMaskedLM,
-        model_tokenizer: AutoTokenizer,
+        model: PreTrainedModel,
+        model_tokenizer: PreTrainedTokenizer,
         word_tokenizer: WordTokenizer,
         word_to_casings: Dict[str, List[Tuple[str, int]]],
         device: str = "cuda:0",
     ):
-        self.model = model
+        self.model: PreTrainedModel = model
         self.model_tokenizer = model_tokenizer
-        self.stops = set(stopwords.words("english"))
-        self.punctuation_set = set(punctuation)
+        self.stops: List[str] = set(stopwords.words("english"))  # type: ignore
+        self.punctuation_set: Set[str] = set(punctuation)
         self.to_strip = " " + punctuation
         self.word_tokenizer = word_tokenizer
         self.device = device
@@ -54,10 +54,10 @@ class FastAugmenter:
         }
 
         # Mask important tokens
-        masked_token_sets = []
-        masked_texts = []
+        masked_token_sets: List[Tuple[List[str], int]] = []
+        masked_texts: List[str] = []
 
-        masked_tokens = []
+        masked_tokens: List[str] = []
 
         for i, token in enumerate(tokens):
             norm_token = (
@@ -70,7 +70,7 @@ class FastAugmenter:
                 not token
                 or self.word_tokenizer.is_split(token)
                 or (exclude_stopwords and norm_token in self.stops)
-                or (important_tokens is not None and norm_token not in important_tokens)
+                or norm_token not in important_tokens
             ):
                 continue
 
@@ -83,7 +83,7 @@ class FastAugmenter:
             position = len(before_text)
 
             # Don't bother if we're beyond the max activating token, as these tokens have no effect on the activation
-            if max_char_position is not None and position > max_char_position:
+            if position > max_char_position:
                 break
 
             copy_tokens = copy.deepcopy(tokens)
@@ -93,7 +93,9 @@ class FastAugmenter:
 
             masked_tokens.append(token)
 
-        # pprint(masked_texts)
+        assert len(tokens) != 0, "No tokens found in text"
+        token = tokens[-1]
+
         if len(masked_texts) == 0:
             return [], []
 
@@ -105,13 +107,14 @@ class FastAugmenter:
         )
         inputs = inputs.to("cpu")
 
-        new_texts = []
-        positions = []
+        new_texts: List[str] = []
+        positions: List[int] = []
 
         for i, (masked_token_set, char_position) in enumerate(masked_token_sets):
-            mask_token_index = np.argwhere(
-                inputs["input_ids"][i] == self.model_tokenizer.mask_token_id
-            )[0, 0]
+            mask_token_id = self.model_tokenizer.mask_token_id  # type: ignore
+            mask_token_index = np.argwhere(inputs["input_ids"][i] == mask_token_id)[  # type: ignore
+                0, 0
+            ]
 
             mask_token_probs = token_probs[i, mask_token_index, :]
 
@@ -122,11 +125,11 @@ class FastAugmenter:
             subbed = 0
 
             # Substitute the given token with the best predictions
-            for l, (top_token, top_prob) in enumerate(zip(top_tokens, top_probs)):
+            for top_token, top_prob in zip(top_tokens, top_probs):
                 if top_prob < 0.00001:
                     break
 
-                candidate_token = self.model_tokenizer.decode(top_token)
+                candidate_token = self.model_tokenizer.decode(top_token)  # type: ignore
 
                 # Check that the predicted token isn't the same as the token that was already there
                 normalised_candidate = (
@@ -192,13 +195,13 @@ def augment(
     prepend_bos = True
     tokens = model.to_tokens(prompt, prepend_bos=prepend_bos)
     str_tokens = typing.cast(
-        List[str], model.to_str_tokens(prompt, prepend_bos=prepend_bos)
+        List[str], model.to_str_tokens(prompt, prepend_bos=prepend_bos)  # type: ignore
     )
 
     if len(tokens[0]) > max_length:
         tokens = tokens[0, :max_length].unsqueeze(0)
 
-    logits, cache = model.run_with_cache(tokens)
+    _logits, cache = model.run_with_cache(tokens)  # type: ignore
     activations = cache[layer][0, :, index]
 
     initial_max: float = torch.max(activations).cpu().item()
@@ -223,7 +226,7 @@ def augment(
 
     aug_tokens = model.to_tokens(aug_prompts, prepend_bos=prepend_bos)
 
-    aug_logits, aug_cache = model.run_with_cache(aug_tokens)
+    _aug_logits, aug_cache = model.run_with_cache(aug_tokens)  # type: ignore
     all_aug_activations = aug_cache[layer][:, :, index]
 
     for aug_prompt, char_position, aug_activations in zip(
@@ -234,7 +237,9 @@ def augment(
 
         # TODO implement this properly - when we mask multiple tokens, if they cross the max_char_position this will not necessarily be correct
         if char_position < max_char_position:
-            new_str_tokens = model.to_str_tokens(aug_prompt, prepend_bos=prepend_bos)
+            new_str_tokens: List[str] = model.to_str_tokens(  # type: ignore
+                aug_prompt, prepend_bos=prepend_bos
+            )
             aug_argmax += len(new_str_tokens) - len(str_tokens)
 
         proportion_drop: float = (aug_max - initial_max) / initial_max
