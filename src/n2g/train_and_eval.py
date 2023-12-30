@@ -9,7 +9,7 @@ from sklearn.model_selection import train_test_split  # type: ignore
 import torch
 from torch import Tensor, FloatTensor
 from transformer_lens.HookedTransformer import HookedTransformer
-from jaxtyping import Int
+from jaxtyping import Int, Float
 
 import n2g
 from n2g.augmenter import Augmenter
@@ -214,7 +214,10 @@ def measure_importance(
     """Compute a measure of token importance by masking each token and measuring the drop in activation on the max activating token"""
 
     prepend_bos = True
-    tokens = model.to_tokens(prompt, prepend_bos=prepend_bos)
+    tokens: Int[Tensor, "1 prompt_length"] = model.to_tokens(
+        prompt, prepend_bos=prepend_bos
+    )
+    print("Tokens shape", tokens.shape, flush=True)
     str_tokens: List[str] = model.to_str_tokens(prompt, prepend_bos=prepend_bos)  # type: ignore
 
     if len(tokens[0]) > max_length:
@@ -222,16 +225,23 @@ def measure_importance(
 
     importances_matrix: List[NDArray[np.float32]] = []
 
-    masked_prompts = tokens.repeat(len(tokens[0]) + 1, 1)
+    masked_prompts: Int[Tensor, "prompt_length+1 prompt_length"] = tokens.repeat(
+        len(tokens[0]) + 1, 1
+    )
+    print("Masked prompts dtype", masked_prompts.dtype, flush=True)
 
     for i in range(1, len(masked_prompts)):
         masked_prompts[i, i - 1] = masking_token
 
     _logits, cache = model.run_with_cache(masked_prompts)  # type: ignore
-    activations = cache[layer][:, :, neuron].cpu()
+    all_activations: Float[Tensor, "prompt_length+1 prompt_length"] = cache[layer][
+        :, :, neuron
+    ].cpu()
 
-    all_masked_activations = activations[1:, :]
-    activations = activations[0, :]
+    all_masked_activations: Float[
+        Tensor, "prompt_length prompt_length"
+    ] = all_activations[1:, :]
+    activations: Float[Tensor, "prompt_length"] = all_activations[0, :]
 
     if initial_argmax is None:
         initial_argmax = typing.cast(int, torch.argmax(activations).item())
