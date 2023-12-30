@@ -228,23 +228,24 @@ def fast_measure_importance(
         masked_prompts[i, i - 1] = masking_token
 
     _logits, cache = model.run_with_cache(masked_prompts)  # type: ignore
-    all_masked_activations = cache[layer][1:, :, neuron].cpu()
+    activations = cache[layer][:, :, neuron].cpu()
 
-    activations = cache[layer][0, :, neuron].cpu()
+    all_masked_activations = activations[1:, :]
+    activations = activations[0, :]
 
     if initial_argmax is None:
-        initial_argmax = typing.cast(int, torch.argmax(activations).cpu().item())
+        initial_argmax = typing.cast(int, torch.argmax(activations).item())
     else:
         # This could be wrong
         initial_argmax = min(initial_argmax, len(activations) - 1)
 
-    initial_max: float = typing.cast(float, activations[initial_argmax].cpu().item())
+    initial_max: float = typing.cast(float, activations[initial_argmax].item())
 
     if max_activation is None:
         max_activation = initial_max
 
     tokens_and_activations: List[Tuple[str, float]] = [
-        (str_token, round(activation.cpu().item() * scale_factor / max_activation, 3))
+        (str_token, round(activation.item() * scale_factor / max_activation, 3))
         for str_token, activation in zip(str_tokens, activations)
     ]
     important_tokens: List[str] = []
@@ -256,15 +257,13 @@ def fast_measure_importance(
         # Get importance of the given token for all tokens
         importances_row: List[float] = []
         for j, activation in enumerate(masked_activations):
-            activation = activation.cpu().item()
-            normalised_activation: float = 1 - (
-                activation / activations[j].cpu().item()
-            )
+            activation = activation.item()
+            normalised_activation: float = 1 - (activation / activations[j].item())
             importances_row.append(normalised_activation)
 
         importances_matrix.append(np.array(importances_row))
 
-        masked_max = masked_activations[initial_argmax].cpu().item()
+        masked_max = masked_activations[initial_argmax].item()
         normalised_activation = 1 - (masked_max / initial_max)
 
         str_token, _ = tokens_and_importances[i]
