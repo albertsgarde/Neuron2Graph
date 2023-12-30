@@ -8,7 +8,7 @@ from numpy.typing import NDArray
 from transformer_lens.HookedTransformer import HookedTransformer
 
 import n2g
-from n2g.fast_augmenter import FastAugmenter
+from n2g.augmenter import Augmenter
 from n2g.neuron_store import NeuronStore
 
 
@@ -35,7 +35,7 @@ def run_training(
     layer_indices: List[int],
     neuron_indices: List[int],
     layer_ending: str,
-    augmenter: FastAugmenter,
+    augmenter: Augmenter,
     activation_matrix: NDArray[np.float32],
     model_name: str,
     output_dir: str,

@@ -18,7 +18,7 @@ from transformer_lens.HookedTransformer import HookedTransformer
 from transformers import PreTrainedModel, PreTrainedTokenizer  # type: ignore
 
 
-class FastAugmenter:
+class Augmenter:
     """Uses BERT to generate variations on input text by masking words and substituting with most likely predictions"""
 
     def __init__(
@@ -183,7 +183,7 @@ def augment(
     layer: str,
     index: int,
     prompt: str,
-    aug: FastAugmenter,
+    aug: Augmenter,
     important_tokens: Set[str],
     max_length: int = 1024,
     inclusion_threshold: float = -0.5,

@@ -11,7 +11,7 @@ from transformers import AutoModelForMaskedLM, AutoTokenizer, PreTrainedTokenize
 from transformer_lens.HookedTransformer import HookedTransformer
 
 import n2g
-from n2g import FastAugmenter, WordTokenizer
+from n2g import Augmenter, WordTokenizer
 
 
 def cmd_arguments() -> Tuple[str, str, List[int], int]:
@@ -84,7 +84,7 @@ def main() -> None:
 
     stick_tokens = {"'"}
     word_tokenizer = WordTokenizer(set(), stick_tokens)
-    fast_aug = FastAugmenter(aug_model, aug_tokenizer, word_tokenizer, word_to_casings)
+    augmenter = Augmenter(aug_model, aug_tokenizer, word_tokenizer, word_to_casings)
 
     output_dir = os.path.join(base_path, "output", model_name)
 
@@ -100,7 +100,7 @@ def main() -> None:
         # Layer ending for the model
         layer_ending,
         # Augmenter
-        fast_aug,
+        augmenter,
         # Activation matrix for the model
         activation_matrix,
         # Model name

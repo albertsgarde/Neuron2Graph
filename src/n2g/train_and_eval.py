@@ -12,7 +12,7 @@ from transformer_lens.HookedTransformer import HookedTransformer
 from jaxtyping import Int
 
 import n2g
-from n2g.fast_augmenter import FastAugmenter
+from n2g.augmenter import Augmenter
 from n2g.neuron_store import NeuronStore
 from .neuron_model import NeuronModel
 
@@ -48,7 +48,7 @@ def batch(arr: List[T], batch_size: int) -> List[List[T]]:
     return groups
 
 
-def fast_prune(
+def prune(
     model: HookedTransformer,
     layer: str,
     neuron: int,
@@ -199,7 +199,7 @@ def fast_prune(
     return list(zip(pruned_sentences, initial_maxes, truncated_maxes))
 
 
-def fast_measure_importance(
+def measure_importance(
     model: HookedTransformer,
     layer: str,
     neuron: int,
@@ -320,7 +320,7 @@ def augment_and_return(
     model: HookedTransformer,
     layer: str,
     neuron: int,
-    aug: FastAugmenter,
+    aug: Augmenter,
     pruned_prompt: str,
     base_max_act: float | None = None,
     use_index: bool = False,
@@ -333,7 +333,7 @@ def augment_and_return(
         important_tokens,
         tokens_and_activations,
         initial_max_index,
-    ) = fast_measure_importance(
+    ) = measure_importance(
         model,
         layer,
         neuron,
@@ -345,7 +345,7 @@ def augment_and_return(
     if base_max_act is not None:
         initial_max_act = base_max_act
 
-    positive_prompts, negative_prompts = n2g.fast_augmenter.augment(
+    positive_prompts, negative_prompts = n2g.augmenter.augment(
         model,
         layer,
         neuron,
@@ -362,7 +362,7 @@ def augment_and_return(
                 _,
                 tokens_and_activations,
                 _max_index,
-            ) = fast_measure_importance(
+            ) = measure_importance(
                 model,
                 layer,
                 neuron,
@@ -378,7 +378,7 @@ def augment_and_return(
                 _,
                 tokens_and_activations,
                 _max_index,
-            ) = fast_measure_importance(
+            ) = measure_importance(
                 model,
                 layer,
                 neuron,
@@ -396,7 +396,7 @@ def augment_and_return(
                 _,
                 tokens_and_activations,
                 _max_index,
-            ) = fast_measure_importance(
+            ) = measure_importance(
                 model,
                 layer,
                 neuron,
@@ -412,7 +412,7 @@ def augment_and_return(
                 _,
                 tokens_and_activations,
                 _max_index,
-            ) = fast_measure_importance(
+            ) = measure_importance(
                 model,
                 layer,
                 neuron,
@@ -429,7 +429,7 @@ def train_and_eval(
     model: HookedTransformer,
     layer_index: int,
     neuron: int,
-    aug: FastAugmenter,
+    aug: Augmenter,
     graph_dir: str,
     samples: List[str],
     activation_matrix: NDArray[np.float32],
@@ -465,7 +465,7 @@ def train_and_eval(
         # if i % 10 == 0:
         print(f"Processing {i + 1} of {len(all_train_samples)}", flush=True)
 
-        pruned_results = fast_prune(
+        pruned_results = prune(
             model,
             layer,
             neuron,
