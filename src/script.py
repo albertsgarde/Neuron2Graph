@@ -38,21 +38,7 @@ def cmd_arguments() -> Tuple[str, str, List[int], int]:
     return model_name, layer_ending, layers, neurons_per_layer
 
 
-if __name__ == "__main__":
-    """
-    Instructions:
-    Download word_to_casings.json from the repo and put in data/
-    Set layer_ending to "mlp.hook_mid" for SoLU models and "mlp.hook_post" for GeLU models
-    Download from the repo or scrape (with scrape.py) the activation matrix for the model and put in data/
-    Set model_name to the name of the model you want to run for
-    Set the parameters in the run section as desired
-    Run this file!
-
-    It will create neuron graphs for the specified layers and neurons in neuron_graphs/model_name/folder_name
-    It'll also save the stats for each neuron in neuron_graphs/model_name/folder_name/stats.json
-    And it will save the neuron store in neuron_graphs/model_name/neuron_store.json
-    """
-
+def main() -> None:
     model_name, layer_ending, layer_indices, neurons_per_layer = cmd_arguments()
 
     print(
@@ -124,3 +110,20 @@ if __name__ == "__main__":
     )
 
     n2g.get_summary_stats(os.path.join(output_dir, "stats.json"))
+
+
+if __name__ == "__main__":
+    """
+    Instructions:
+    Download word_to_casings.json from the repo and put in data/
+    Set layer_ending to "mlp.hook_mid" for SoLU models and "mlp.hook_post" for GeLU models
+    Download from the repo or scrape (with scrape.py) the activation matrix for the model and put in data/
+    Set model_name to the name of the model you want to run for
+    Set the parameters in the run section as desired
+    Run this file!
+
+    It will create neuron graphs for the specified layers and neurons in neuron_graphs/model_name/folder_name
+    It'll also save the stats for each neuron in neuron_graphs/model_name/folder_name/stats.json
+    And it will save the neuron store in neuron_graphs/model_name/neuron_store.json
+    """
+    main()
