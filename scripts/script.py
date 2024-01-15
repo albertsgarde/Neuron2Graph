@@ -1,14 +1,13 @@
 import json
-import typing
-from typing import List, Tuple
 import os
 import sys
+import typing
+from typing import List, Tuple
 
 import numpy as np
-
 import torch
-from transformers import AutoModelForMaskedLM, AutoTokenizer, PreTrainedTokenizer, PreTrainedModel  # type: ignore
 from transformer_lens.HookedTransformer import HookedTransformer
+from transformers import AutoModelForMaskedLM, AutoTokenizer, PreTrainedModel, PreTrainedTokenizer  # type: ignore
 
 import n2g
 from n2g import Augmenter, WordTokenizer
@@ -50,17 +49,14 @@ def main() -> None:
     print(f"Device: {device}", flush=True)
     model: HookedTransformer = HookedTransformer.from_pretrained(model_name).to(device)  # type: ignore
 
-    base_path = os.path.abspath(
-        os.path.join(os.path.dirname(os.path.abspath(__file__)))
-    )
+    repo_root: str = os.path.abspath(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
     # Save the activation matrix for the model to data/
-    activation_matrix_path = os.path.join(
-        base_path, f"data/activation_matrix-{model_name}.json"
-    )
+    activation_matrix_path = os.path.join(repo_root, f"data/activation_matrix-{model_name}.json")
     if not os.path.exists(activation_matrix_path):
         raise Exception(
-            f"Activation matrix not found for model {model_name}. Either download it from the repo or scrape it with `scrape.py`."
+            f"Activation matrix not found for model {model_name}. "
+            "Either download it from the repo or scrape it with `scrape.py`."
         )
     with open(activation_matrix_path) as ifh:
         activation_matrix = json.load(ifh)
@@ -76,17 +72,23 @@ def main() -> None:
         ),
     )
     aug_tokenizer: PreTrainedTokenizer = typing.cast(
-        PreTrainedTokenizer, AutoTokenizer.from_pretrained(aug_model_checkpoint)  # type: ignore
+        PreTrainedTokenizer,
+        AutoTokenizer.from_pretrained(aug_model_checkpoint),  # type: ignore
     )
 
-    with open(f"{base_path}/data/word_to_casings.json", encoding="utf-8") as ifh:
+    data_dir = os.path.join(repo_root, "data")
+    if not os.path.exists(os.path.join(data_dir, "word_to_casings.json")):
+        raise Exception("`word_to_casings.json` not found in `data/`.")
+
+    with open(os.path.join(data_dir, "word_to_casings.json"), encoding="utf-8") as ifh:
         word_to_casings = json.load(ifh)
 
     stick_tokens = {"'"}
     word_tokenizer = WordTokenizer(set(), stick_tokens)
     augmenter = Augmenter(aug_model, aug_tokenizer, word_tokenizer, word_to_casings)
 
-    output_dir = os.path.join(base_path, "output", model_name)
+    output_dir = os.path.join(repo_root, "output", model_name)
+    os.makedirs(output_dir, exist_ok=True)
 
     # ================ Run ================
     # Run training for the specified layers and neurons

@@ -1,0 +1,25 @@
+[project]
+name = "n2g"
+version = "0.1.0"
+description = "An implementation of the neuron2graph mechanistic interpretability algorithm which finds graph representations of MLP neuron behaviour. Article: https://arxiv.org/abs/2305.19911"
+readme = "README.md"
+requires-python ="~=3.9"
+license = {file = "LICENSE"}
+urls = {repository = "https://github.com/apartresearch/Neuron2Graph" }
+dependencies = []
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["n2g"]
+
+[tool.ruff]
+line-length = 120
+select = ["I", "E", "F", "W", "N", "B"]
+ignore = ["E721", "E731", "F722", "D203", "D213"]
+ignore-init-module-imports = true
+
+[tool.ruff.isort]
+combine-as-imports = true
