@@ -3,17 +3,13 @@ import typing
 from string import punctuation
 from typing import Dict, List, Set, Tuple
 
-import nltk  # type: ignore
 import numpy as np
 import torch
-from nltk.corpus import stopwords  # type: ignore
 from torch.nn import functional
 from transformer_lens.HookedTransformer import HookedTransformer
 from transformers import PreTrainedModel, PreTrainedTokenizer  # type: ignore
 
 from n2g.word_tokenizer import WordTokenizer
-
-nltk.download("stopwords")  # type: ignore
 
 
 class Augmenter:
@@ -29,7 +25,6 @@ class Augmenter:
     ):
         self.model: PreTrainedModel = model
         self.model_tokenizer = model_tokenizer
-        self.stops: List[str] = set(stopwords.words("english"))  # type: ignore
         self.punctuation_set: Set[str] = set(punctuation)
         self.to_strip = " " + punctuation
         self.word_tokenizer = word_tokenizer
@@ -41,7 +36,6 @@ class Augmenter:
         text: str,
         max_char_position: int,
         important_tokens: Set[str],
-        exclude_stopwords: bool = False,
         n: int = 5,
     ) -> Tuple[List[str], List[int]]:
         joiner = ""
@@ -58,12 +52,7 @@ class Augmenter:
         for i, token in enumerate(tokens):
             norm_token = token.strip(self.to_strip).lower() if any(c.isalpha() for c in token) else token
 
-            if (
-                not token
-                or self.word_tokenizer.is_split(token)
-                or (exclude_stopwords and norm_token in self.stops)
-                or norm_token not in important_tokens
-            ):
+            if not token or self.word_tokenizer.is_split(token) or norm_token not in important_tokens:
                 continue
 
             # If no alphanumeric characters, we'll do a special substitution rather than using BERT
@@ -162,7 +151,6 @@ def augment(
     inclusion_threshold: float = -0.5,
     exclusion_threshold: float = -0.5,
     n: int = 5,
-    exclude_stopwords: bool = False,
 ) -> Tuple[List[str], List[str]]:
     """Generate variations of a prompt using an augmenter"""
     prepend_bos = True
@@ -193,7 +181,6 @@ def augment(
         max_char_position=max_char_position,
         n=n,
         important_tokens=important_tokens,
-        exclude_stopwords=exclude_stopwords,
     )
     if not aug_prompts:
         return positive_prompts, negative_prompts
