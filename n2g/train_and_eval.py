@@ -1,5 +1,6 @@
 import os
-from typing import Any, List, Optional, Tuple, Dict
+from typing import Any, Dict, List, Optional, Tuple
+
 import numpy as np
 from numpy.typing import NDArray
 from sklearn.model_selection import train_test_split  # type: ignore
@@ -40,12 +41,8 @@ def train_and_eval(
         )
         train_samples, test_samples = split
     else:
-        train_samples = [
-            snippet for i, snippet in enumerate(samples) if i in train_indexes
-        ]
-        test_samples = [
-            snippet for i, snippet in enumerate(samples) if i not in train_indexes
-        ]
+        train_samples = [snippet for i, snippet in enumerate(samples) if i in train_indexes]
+        test_samples = [snippet for i, snippet in enumerate(samples) if i not in train_indexes]
 
     all_train_samples = train_samples
 

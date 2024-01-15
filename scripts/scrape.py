@@ -1,13 +1,13 @@
+import json
+import multiprocessing as mp
+import os
 import re
 import sys
-from typing import List, Tuple
-import requests
-import json
-import os
-import multiprocessing as mp
-import numpy as np
-
 from functools import partial
+from typing import List, Tuple
+
+import numpy as np
+import requests
 
 act_parser = re.compile("<h4>Max Act: <b>")
 
@@ -34,7 +34,7 @@ def get_max_acts(model_name: str, layer_and_neurons: Tuple[int, List[int]]):
         try:
             activation = get_max_activations(model_name, layer, neuron)
             activations.append(activation)
-        except:
+        except Exception:
             print(f"Neuron {neuron} in layer {layer} failed", flush=True)
             # Use the previous activation as a hack to get around failures
             activations.append(activations[-1])
@@ -63,9 +63,7 @@ if __name__ == "__main__":
     Look at https://neuroscope.io/ for the model you want to scrape
     Set the number of layers and neurons appropriately
     """
-    base_path = os.path.abspath(
-        os.path.join(os.path.dirname(os.path.abspath(__file__)))
-    )
+    base_path = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__))))
 
     model_name, layers, neurons, overwrite = cmd_arguments()
 

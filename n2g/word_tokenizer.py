@@ -15,9 +15,7 @@ class WordTokenizer:
 
     def is_split(self, char: str) -> bool:
         """Split on any non-alphabet chars unless excluded, and split on any specified chars"""
-        return char in self.split_tokens or (
-            not char.isalpha() and char not in self.stick_tokens
-        )
+        return char in self.split_tokens or (not char.isalpha() and char not in self.stick_tokens)
 
     def tokenize(self, text: str) -> List[str]:
         """Tokenize text, preserving all characters"""

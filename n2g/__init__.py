@@ -1,13 +1,13 @@
-from .word_tokenizer import WordTokenizer, sentence_tokenizer
 from .augmenter import Augmenter, augment
-from .neuron_store import NeuronStore
-from .neuron_model import NeuronModel
-from .stats import get_summary_stats
-from .fit import fit_neuron_model
 from .evaluate import evaluate
+from .fit import fit_neuron_model
+from .neuron_model import NeuronModel
+from .neuron_store import NeuronStore
+from .run import run_training
+from .stats import get_summary_stats
 from .train_and_eval import train_and_eval
 from .training_samples import scrape_neuroscope_samples
-from .run import run_training
+from .word_tokenizer import WordTokenizer, sentence_tokenizer
 
 __all__ = [
     "WordTokenizer",

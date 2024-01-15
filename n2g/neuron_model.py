@@ -1,11 +1,10 @@
-from collections import Counter, defaultdict
 import json
+from collections import Counter, defaultdict
 from typing import Callable, Dict, List, NamedTuple, Optional, Set, Tuple
+
 import numpy as np
-
-from numpy.typing import NDArray
-
 from graphviz import Digraph, escape  # type: ignore
+from numpy.typing import NDArray
 
 from n2g.neuron_store import NeuronStore
 
@@ -83,9 +82,7 @@ class NeuronModel:
         self.root = (
             NeuronNode(
                 -1,
-                Element(
-                    0, 0, self.root_token, False, False, True, False, self.root_token
-                ),
+                Element(0, 0, self.root_token, False, False, True, False, self.root_token),
                 -1,
             ),
             NeuronEdge(),
@@ -93,9 +90,7 @@ class NeuronModel:
         self.trie_root = (
             NeuronNode(
                 -1,
-                Element(
-                    0, 0, self.root_token, False, False, True, False, self.root_token
-                ),
+                Element(0, 0, self.root_token, False, False, True, False, self.root_token),
                 -1,
             ),
             NeuronEdge(),
@@ -117,9 +112,7 @@ class NeuronModel:
         result: List[Set[int]] = []
         for i in range(len(tokens_and_activations)):
             important_indices: Set[int] = set()
-            for j, (seq_token, _) in enumerate(
-                reversed(tokens_and_activations[: i + 1])
-            ):
+            for j, (seq_token, _) in enumerate(reversed(tokens_and_activations[: i + 1])):
                 if seq_token == "<|endoftext|>":
                     continue
                 seq_index = i - j
@@ -148,12 +141,9 @@ class NeuronModel:
             line: List[Element] = []
             last_important = 0
 
-            # The if else is a bit of a hack to account for augmentations that have a different number of tokens to the original prompt
-            important_indices = (
-                important_index_sets[i]
-                if i < len(important_index_sets)
-                else important_index_sets[-1]
-            )
+            # The if else is a bit of a hack to account for augmentations that have a different number
+            # of tokens to the original prompt
+            important_indices = important_index_sets[i] if i < len(important_index_sets) else important_index_sets[-1]
 
             for j, (seq_token, seq_activation) in enumerate(reversed(before)):
                 if seq_token == "<|endoftext|>":
@@ -163,9 +153,7 @@ class NeuronModel:
                 importance = importances_matrix[seq_index, i]
                 importance = float(importance)
 
-                important = importance > self.importance_threshold or (
-                    seq_index in important_indices
-                )
+                important = importance > self.importance_threshold or (seq_index in important_indices)
                 activator = seq_activation > self.activation_threshold
 
                 ignore = not important and j != 0
@@ -227,7 +215,8 @@ class NeuronModel:
 
             if graph:
                 # Set end value as we don't have end nodes in the graph
-                # The current node is an end if there's only one more node, as that will be the end node that we don't add
+                # The current node is an end if there's only one more node,
+                # as that will be the end node that we don't add
                 is_end = i == len(line) - 2
                 element = element._replace(is_end=is_end)
 
@@ -259,13 +248,9 @@ class NeuronModel:
     ):
         for example_data in data:
             (first_importances, first_tokens_and_activations) = example_data[0]
-            important_index_sets = self._initialize_index_sets(
-                first_importances, first_tokens_and_activations
-            )
+            important_index_sets = self._initialize_index_sets(first_importances, first_tokens_and_activations)
             for importances_matrix, tokens_and_activations in example_data:
-                lines = self.make_line(
-                    importances_matrix, tokens_and_activations, important_index_sets
-                )
+                lines = self.make_line(importances_matrix, tokens_and_activations, important_index_sets)
 
                 for line in lines:
                     self.add(self.root, line, graph=True)
@@ -286,11 +271,9 @@ class NeuronModel:
             token = node.value.token
 
             if token not in self.special_tokens:
-                neuron_store.add_neuron(
-                    node.value.activator, token, f"{self.layer}_{self.neuron}"
-                )
+                neuron_store.add_neuron(node.value.activator, token, f"{self.layer}_{self.neuron}")
 
-            for token, neighbour in node.children.items():
+            for _token, neighbour in node.children.items():
                 new_node, _new_edge = neighbour
                 if new_node.id_ not in visited:
                     visited.add(new_node.id_)
@@ -298,9 +281,7 @@ class NeuronModel:
 
     @staticmethod
     def normalise(token: str) -> str:
-        normalised_token = (
-            token.lower() if token.istitle() and len(token) > 1 else token
-        )
+        normalised_token = token.lower() if token.istitle() and len(token) > 1 else token
         normalised_token = (
             normalised_token.strip()
             if len(normalised_token) > 1 and any(c.isalpha() for c in normalised_token)
@@ -336,18 +317,14 @@ class NeuronModel:
 
                     for path in child_paths:
                         # Don't merge if the path is only the first tuple, or the first tuple and an end tuple
-                        if len(path) <= 1 or (
-                            len(path) == 2 and path[-1].token == self.end_token
-                        ):
+                        if len(path) <= 1 or (len(path) == 2 and path[-1].token == self.end_token):
                             continue
                         # Merge the path (not including the first tuple that we're merging)
                         self.add(ignore_tuple, path[1:], graph=False)
 
-                    # Add the node to a list to be removed later if it isn't an end node and doesn't have an end node in its children
-                    if (
-                        not child_node.value.is_end
-                        and not self.end_token in child_node.children
-                    ):
+                    # Add the node to a list to be removed later if it isn't an end node
+                    # and doesn't have an end node in its children
+                    if not child_node.value.is_end and self.end_token not in child_node.children:
                         to_remove.append(child_token)
 
                 for child_token in to_remove:
@@ -370,10 +347,7 @@ class NeuronModel:
 
             current_node, _current_edge = current_tuple
 
-            if (
-                token in current_node.children
-                or self.ignore_token in current_node.children
-            ):
+            if token in current_node.children or self.ignore_token in current_node.children:
                 current_tuple = (
                     current_node.children[token]
                     if token in current_node.children
@@ -399,7 +373,7 @@ class NeuronModel:
 
     def forward(self, tokens_arr: List[List[str]]) -> List[List[float]]:
         if isinstance(tokens_arr[0], str):
-            raise ValueError(f"tokens_arr must be of type List[List[str]]")
+            raise ValueError("tokens_arr must be of type List[List[str]]")
 
         """Evaluate the activation on each token in some input tokens"""
         all_activations: List[List[float]] = []
@@ -455,7 +429,7 @@ class NeuronModel:
 
             node_edge_tuples.append((node, edge))
 
-            for token, neighbour in node.children.items():
+            for _token, neighbour in node.children.items():
                 new_node, _new_edge = neighbour
                 if new_node.id_ not in visited:
                     visited.add(new_node.id_)
@@ -477,9 +451,7 @@ class NeuronModel:
 
             if depth not in tokens_by_layer:
                 tokens_by_layer[depth] = {}
-                depth_to_subgraph[depth] = Digraph(
-                    name=f"cluster_{str(self.max_depth - depth)}"
-                )
+                depth_to_subgraph[depth] = Digraph(name=f"cluster_{str(self.max_depth - depth)}")
                 depth_to_subgraph[depth].attr(pencolor="white", penwidth="3")  # type: ignore
 
             token_by_layer_count[depth][token] += 1
@@ -495,34 +467,20 @@ class NeuronModel:
 
             if depth == 0:
                 # colour red according to activation for depth 0 tokens
-                scaled_activation = int(
-                    adjust(
-                        node.value.activation, max(0, self.activation_threshold - 0.2)
-                    )
-                    * 255
-                )
+                scaled_activation = int(adjust(node.value.activation, max(0, self.activation_threshold - 0.2)) * 255)
                 rgb = (255, 255 - scaled_activation, 255 - scaled_activation)
             else:
                 # colour blue according to importance for all other tokens
                 # Shift and scale importance so the importance threshold becomes 0
 
-                scaled_importance = int(
-                    adjust(
-                        node.value.importance, max(0.1, self.importance_threshold - 0.2)
-                    )
-                    * 255
-                )
+                scaled_importance = int(adjust(node.value.importance, max(0.1, self.importance_threshold - 0.2)) * 255)
                 rgb = (255 - scaled_importance, 255 - scaled_importance, 255)
 
             hex = "#{0:02x}{1:02x}{2:02x}".format(*self.clamp(rgb))
 
             if graph_node_id not in added_ids and not node.value.ignore:
                 display_token = token.strip(zero_width)
-                display_token = (
-                    json.dumps(display_token).strip('[]"')
-                    if '"' not in token
-                    else display_token
-                )
+                display_token = json.dumps(display_token).strip('[]"') if '"' not in token else display_token
                 if set(display_token) == {" "}:
                     display_token = f"'{display_token}'"
 
@@ -542,18 +500,14 @@ class NeuronModel:
                 )
                 added_ids.add(graph_node_id)
 
-            if (
-                edge.parent is not None
-                and edge.parent.id_ in visited
-                and not edge.parent.value.ignore
-            ):
+            if edge.parent is not None and edge.parent.id_ in visited and not edge.parent.value.ignore:
                 graph_parent_id = node_id_to_graph_id[edge.parent.id_]
                 edge_tuple = (graph_parent_id, graph_node_id)
                 if edge_tuple not in added_edges:
                     net.edge(*edge_tuple, penwidth="3", dir="back")  # type: ignore
                     added_edges.add(edge_tuple)
 
-        for depth, subgraph in depth_to_subgraph.items():
+        for _depth, subgraph in depth_to_subgraph.items():
             net.subgraph(subgraph)  # type: ignore
 
         return net

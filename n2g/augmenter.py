@@ -1,21 +1,19 @@
-from typing import Dict, List, Set, Tuple
+import copy
 import typing
+from string import punctuation
+from typing import Dict, List, Set, Tuple
+
+import nltk  # type: ignore
+import numpy as np
+import torch
+from nltk.corpus import stopwords  # type: ignore
+from torch.nn import functional
+from transformer_lens.HookedTransformer import HookedTransformer
+from transformers import PreTrainedModel, PreTrainedTokenizer  # type: ignore
 
 from n2g.word_tokenizer import WordTokenizer
 
-import nltk  # type: ignore
-
 nltk.download("stopwords")  # type: ignore
-from nltk.corpus import stopwords  # type: ignore
-from string import punctuation
-import copy
-
-import torch
-import torch.nn.functional as F
-import numpy as np
-
-from transformer_lens.HookedTransformer import HookedTransformer
-from transformers import PreTrainedModel, PreTrainedTokenizer  # type: ignore
 
 
 class Augmenter:
@@ -49,9 +47,7 @@ class Augmenter:
         joiner = ""
         tokens = self.word_tokenizer(text)
 
-        important_tokens = {
-            token.strip(self.to_strip).lower() for token in important_tokens
-        }
+        important_tokens = {token.strip(self.to_strip).lower() for token in important_tokens}
 
         # Mask important tokens
         masked_token_sets: List[Tuple[List[str], int]] = []
@@ -60,11 +56,7 @@ class Augmenter:
         masked_tokens: List[str] = []
 
         for i, token in enumerate(tokens):
-            norm_token = (
-                token.strip(self.to_strip).lower()
-                if any(c.isalpha() for c in token)
-                else token
-            )
+            norm_token = token.strip(self.to_strip).lower() if any(c.isalpha() for c in token) else token
 
             if (
                 not token
@@ -99,12 +91,8 @@ class Augmenter:
         if len(masked_texts) == 0:
             return [], []
 
-        inputs = self.model_tokenizer(
-            masked_texts, padding=True, return_tensors="pt"
-        ).to(self.device)
-        token_probs = (
-            F.softmax(self.model(**inputs).logits, dim=-1).cpu().detach().numpy()
-        )
+        inputs = self.model_tokenizer(masked_texts, padding=True, return_tensors="pt").to(self.device)
+        token_probs = functional.softmax(self.model(**inputs).logits, dim=-1).cpu().detach().numpy()
         inputs = inputs.to("cpu")
 
         new_texts: List[str] = []
@@ -112,9 +100,7 @@ class Augmenter:
 
         for i, (masked_token_set, char_position) in enumerate(masked_token_sets):
             mask_token_id = self.model_tokenizer.mask_token_id  # type: ignore
-            mask_token_index = np.argwhere(inputs["input_ids"][i] == mask_token_id)[  # type: ignore
-                0, 0
-            ]
+            mask_token_index = np.argwhere(inputs["input_ids"][i] == mask_token_id)[0, 0]  # type: ignore
 
             mask_token_probs = token_probs[i, mask_token_index, :]
 
@@ -137,36 +123,23 @@ class Augmenter:
                     if candidate_token not in self.punctuation_set
                     else candidate_token
                 )
-                normalised_token = (
-                    token.strip(self.to_strip).lower()
-                    if token not in self.punctuation_set
-                    else token
-                )
+                normalised_token = token.strip(self.to_strip).lower() if token not in self.punctuation_set else token
 
-                if normalised_candidate == normalised_token or not any(
-                    c.isalpha() for c in candidate_token
-                ):
+                if normalised_candidate == normalised_token or not any(c.isalpha() for c in candidate_token):
                     continue
 
                 # Get most common casing of the word
-                most_common_casing = self.word_to_casings.get(
-                    candidate_token, [(candidate_token, 1)]
-                )[0][0]
+                most_common_casing = self.word_to_casings.get(candidate_token, [(candidate_token, 1)])[0][0]
 
                 original_token = masked_tokens[i]
-                # Title case normally has meaning (e.g., start of sentence, in a proper noun, etc.) so follow original token, otherwise use most common
-                best_casing = (
-                    candidate_token.title()
-                    if original_token.istitle()
-                    else most_common_casing
-                )
+                # Title case normally has meaning (e.g., start of sentence, in a proper noun, etc.) so follow original
+                # token, otherwise use most common
+                best_casing = candidate_token.title() if original_token.istitle() else most_common_casing
 
                 new_token_set = copy.deepcopy(masked_token_set)
                 # BERT uses ## to denote a tokenisation within a word, so we remove it to glue the word back together
                 masked_text = joiner.join(new_token_set)
-                new_text = masked_text.replace(
-                    self.model_tokenizer.mask_token, best_casing, 1
-                ).replace(" ##", "")
+                new_text = masked_text.replace(self.model_tokenizer.mask_token, best_casing, 1).replace(" ##", "")
 
                 new_texts.append(new_text)
                 positions.append(char_position)
@@ -195,7 +168,8 @@ def augment(
     prepend_bos = True
     tokens = model.to_tokens(prompt, prepend_bos=prepend_bos)
     str_tokens = typing.cast(
-        List[str], model.to_str_tokens(prompt, prepend_bos=prepend_bos)  # type: ignore
+        List[str],
+        model.to_str_tokens(prompt, prepend_bos=prepend_bos),  # type: ignore
     )
 
     if len(tokens[0]) > max_length:
@@ -229,13 +203,12 @@ def augment(
     _aug_logits, aug_cache = model.run_with_cache(aug_tokens)  # type: ignore
     all_aug_activations = aug_cache[layer][:, :, index]
 
-    for aug_prompt, char_position, aug_activations in zip(
-        aug_prompts, aug_positions, all_aug_activations
-    ):
+    for aug_prompt, char_position, aug_activations in zip(aug_prompts, aug_positions, all_aug_activations):
         aug_max: float = torch.max(aug_activations).cpu().item()
         aug_argmax = typing.cast(int, torch.argmax(aug_activations).cpu().item())
 
-        # TODO implement this properly - when we mask multiple tokens, if they cross the max_char_position this will not necessarily be correct
+        # TODO implement this properly - when we mask multiple tokens,
+        # if they cross the max_char_position this will not necessarily be correct
         if char_position < max_char_position:
             new_str_tokens: List[str] = model.to_str_tokens(  # type: ignore
                 aug_prompt, prepend_bos=prepend_bos

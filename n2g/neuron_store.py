@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import json
 from typing import Dict, List, Set
 
@@ -38,6 +39,6 @@ class NeuronStore:
 
     def add_neuron(self, activating: bool, token: str, neuron: str) -> None:
         store = self._activating if activating else self._important
-        if not token in store.keys():
+        if token not in store.keys():
             store[token] = set()
         store[token].add(neuron)

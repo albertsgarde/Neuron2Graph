@@ -3,6 +3,7 @@ import os
 import random
 import traceback
 from typing import Any, Dict, List, Tuple
+
 import numpy as np
 from numpy.typing import NDArray
 from transformer_lens.HookedTransformer import HookedTransformer
@@ -44,11 +45,7 @@ def run_training(
 
     graph_dir, neuron_store_path, stats_path = setup_paths(output_dir)
 
-    neuron_store = (
-        NeuronStore.load(neuron_store_path)
-        if os.path.exists(neuron_store_path)
-        else NeuronStore()
-    )
+    neuron_store = NeuronStore.load(neuron_store_path) if os.path.exists(neuron_store_path) else NeuronStore()
 
     all_stats = get_stats(stats_path)
 
@@ -57,9 +54,7 @@ def run_training(
         for neuron_index in neuron_indices:
             print(f"{layer_index=} {neuron_index=}", flush=True)
             try:
-                training_samples = n2g.scrape_neuroscope_samples(
-                    model_name, layer_index, neuron_index
-                )
+                training_samples = n2g.scrape_neuroscope_samples(model_name, layer_index, neuron_index)
 
                 stats = n2g.train_and_eval(
                     model,

@@ -1,17 +1,17 @@
 import math
-from typing import Any, List, Optional, Tuple, TypeVar
 import typing
+from typing import Any, List, Optional, Tuple, TypeVar
+
 import numpy as np
-from numpy.typing import NDArray
-from sklearn import metrics  # type: ignore
-from sklearn.model_selection import train_test_split  # type: ignore
 import torch
+from jaxtyping import Float, Int
+from numpy.typing import NDArray
 from torch import Tensor
 from transformer_lens.HookedTransformer import HookedTransformer
-from jaxtyping import Int, Float
 
 import n2g
 from n2g.augmenter import Augmenter
+
 from .neuron_model import NeuronModel
 
 T = TypeVar("T")
@@ -57,10 +57,12 @@ def prune(
     skip_threshold: int = 0,
     skip_interval: int = 5,
 ) -> List[Tuple[str, float, float]]:
-    """Prune an input prompt to the shortest string that preserves x% of neuron activation on the most activating token."""
+    """
+    Prune an input prompt to the shortest string that preserves x% of neuron activation on the most activating token.
+    """
 
     prepend_bos = True
-    tokens: Int[Tensor, "batch_pos"] = model.to_tokens(prompt, prepend_bos=prepend_bos)
+    tokens: Int[Tensor, " batch_pos"] = model.to_tokens(prompt, prepend_bos=prepend_bos)
     str_tokens: List[str] = model.to_str_tokens(prompt, prepend_bos=prepend_bos)  # type: ignore
 
     if len(tokens[0]) > max_length:
@@ -87,18 +89,12 @@ def prune(
     initial_maxes: List[float] = []
     truncated_maxes: List[float] = []
 
-    for initial_argmax_tensor, initial_max_tensor in zip(
-        strong_indices, strong_activations
-    ):
+    for initial_argmax_tensor, initial_max_tensor in zip(strong_indices, strong_activations):
         initial_argmax: int = initial_argmax_tensor.item()  # type: ignore
         initial_max: float = initial_max_tensor.item()
 
         max_sentence_index = token_to_sentence_indices[initial_argmax]
-        relevant_str_tokens = [
-            str_token
-            for sentence in sentences[: max_sentence_index + 1]
-            for str_token in sentence
-        ]
+        relevant_str_tokens = [str_token for sentence in sentences[: max_sentence_index + 1] for str_token in sentence]
 
         prior_context = relevant_str_tokens[: initial_argmax + 1]
 
@@ -118,11 +114,7 @@ def prune(
             if count > cutoff:
                 break
 
-            if (
-                not count == len(full_prior)
-                and count >= skip_threshold
-                and count % skip_interval != 0
-            ):
+            if not count == len(full_prior) and count >= skip_threshold and count % skip_interval != 0:
                 continue
 
             truncated_prompt = prior_context[i:]
@@ -136,9 +128,7 @@ def prune(
         finished = False
 
         truncated_max: Optional[float] = None
-        for i, (truncated_batch, added_tokens_batch) in enumerate(
-            zip(batched_truncated_prompts, batched_added_tokens)
-        ):
+        for i, (truncated_batch, added_tokens_batch) in enumerate(zip(batched_truncated_prompts, batched_added_tokens)):
             truncated_tokens = model.to_tokens(truncated_batch, prepend_bos=prepend_bos)
 
             _logits, cache = model.run_with_cache(truncated_tokens)  # type: ignore
@@ -146,9 +136,7 @@ def prune(
 
             for j, truncated_activations in enumerate(all_truncated_activations):
                 num_added_tokens = added_tokens_batch[j]
-                truncated_argmax = (
-                    torch.argmax(truncated_activations).cpu().item() + num_added_tokens
-                )
+                truncated_argmax = torch.argmax(truncated_activations).cpu().item() + num_added_tokens
 
                 if prepend_bos:
                     truncated_argmax -= 1
@@ -159,17 +147,10 @@ def prune(
                 if (
                     truncated_argmax == initial_argmax
                     and (
-                        (truncated_max - initial_max) / initial_max
-                        > proportion_threshold
-                        or (
-                            absolute_threshold is not None
-                            and truncated_max >= absolute_threshold
-                        )
+                        (truncated_max - initial_max) / initial_max > proportion_threshold
+                        or (absolute_threshold is not None and truncated_max >= absolute_threshold)
                     )
-                ) or (
-                    i == len(batched_truncated_prompts) - 1
-                    and j == len(all_truncated_activations) - 1
-                ):
+                ) or (i == len(batched_truncated_prompts) - 1 and j == len(all_truncated_activations) - 1):
                     shortest_successful_prompt = shortest_prompt
                     finished = True
                     break
@@ -204,12 +185,11 @@ def measure_importance(
     threshold: float = 0.8,
     scale_factor: float = 1,
 ) -> Tuple[NDArray[np.float32], float, List[str], List[Tuple[str, float]], int]:
-    """Compute a measure of token importance by masking each token and measuring the drop in activation on the max activating token"""
+    """Compute a measure of token importance by masking each token and measuring the drop in activation on
+    the max activating token"""
 
     prepend_bos = True
-    tokens: Int[Tensor, "1 prompt_length"] = model.to_tokens(
-        prompt, prepend_bos=prepend_bos
-    )
+    tokens: Int[Tensor, "1 prompt_length"] = model.to_tokens(prompt, prepend_bos=prepend_bos)
     str_tokens: List[str] = model.to_str_tokens(prompt, prepend_bos=prepend_bos)  # type: ignore
 
     if len(tokens[0]) > max_length:
@@ -217,22 +197,16 @@ def measure_importance(
 
     importances_matrix: List[NDArray[np.float32]] = []
 
-    masked_prompts: Int[Tensor, "prompt_length+1 prompt_length"] = tokens.repeat(
-        len(tokens[0]) + 1, 1
-    )
+    masked_prompts: Int[Tensor, "prompt_length+1 prompt_length"] = tokens.repeat(len(tokens[0]) + 1, 1)
 
     for i in range(1, len(masked_prompts)):
         masked_prompts[i, i - 1] = masking_token
 
     _logits, cache = model.run_with_cache(masked_prompts)  # type: ignore
-    all_activations: Float[Tensor, "prompt_length+1 prompt_length"] = cache[layer][
-        :, :, neuron
-    ].cpu()
+    all_activations: Float[Tensor, "prompt_length+1 prompt_length"] = cache[layer][:, :, neuron].cpu()
 
-    all_masked_activations: Float[
-        Tensor, "prompt_length prompt_length"
-    ] = all_activations[1:, :]
-    activations: Float[Tensor, "prompt_length"] = all_activations[0, :]
+    all_masked_activations: Float[Tensor, "prompt_length prompt_length"] = all_activations[1:, :]
+    activations: Float[Tensor, " prompt_length"] = all_activations[0, :]
 
     if initial_argmax is None:
         initial_argmax = typing.cast(int, torch.argmax(activations).item())
@@ -250,9 +224,7 @@ def measure_importance(
         for str_token, activation in zip(str_tokens, activations)
     ]
     important_tokens: List[str] = []
-    tokens_and_importances: List[Tuple[str, float]] = [
-        (str_token, 0) for str_token in str_tokens
-    ]
+    tokens_and_importances: List[Tuple[str, float]] = [(str_token, 0) for str_token in str_tokens]
 
     for i, masked_activations in enumerate(all_masked_activations):
         # Get importance of the given token for all tokens
