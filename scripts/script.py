@@ -96,6 +96,7 @@ def main() -> None:
         aug_model_name,
         neuron_store,
         all_stats,
+        n2g.TrainConfig(),
         device,
     )
 

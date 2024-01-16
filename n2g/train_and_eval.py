@@ -7,8 +7,8 @@ from transformer_lens.HookedTransformer import HookedTransformer
 import n2g
 
 from . import fit
-from .augmenter import AugmentationConfig, Augmenter
-from .fit import FitConfig, ImportanceConfig, PruneConfig
+from .augmenter import Augmenter
+from .fit import FitConfig
 from .neuron_model import NeuronModel
 from .neuron_store import NeuronStore
 
@@ -27,7 +27,8 @@ def train_and_eval(
     activation_matrix: NDArray[np.float32],
     layer_ending: str,
     neuron_store: NeuronStore,
-    fire_threshold: float = 0.5,
+    fire_threshold: float,
+    fit_config: FitConfig,
 ) -> Tuple[NeuronModel, Dict[str, Any]]:
     layer = layer_index_to_name(layer_index, layer_ending)
 
@@ -42,9 +43,7 @@ def train_and_eval(
         train_samples,
         augmenter,
         base_max_act,
-        config=FitConfig(
-            prune_config=PruneConfig(), importance_config=ImportanceConfig(), augmentation_config=AugmentationConfig()
-        ),
+        config=fit_config,
     )
     neuron_model.update_neuron_store(neuron_store)
 

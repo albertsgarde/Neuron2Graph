@@ -1,7 +1,8 @@
 import random
 import traceback
 import typing
-from typing import Any, Dict, List, Tuple
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
@@ -12,10 +13,38 @@ from transformers import AutoModelForMaskedLM, AutoTokenizer, PreTrainedModel, P
 
 import n2g
 
-from .augmenter import Augmenter
+from .augmenter import AugmentationConfig, Augmenter
+from .fit import FitConfig, ImportanceConfig, PruneConfig
 from .neuron_model import NeuronModel
 from .neuron_store import NeuronStore
 from .word_tokenizer import WordTokenizer
+
+
+@dataclass
+class TrainConfig:
+    fit_config: FitConfig
+    fire_threshold: float
+    train_proportion: float
+    random_seed: int
+
+    def __init__(
+        self,
+        fit_config: Optional[FitConfig] = None,
+        fire_threshold: float = 0.5,
+        train_proportion: float = 0.5,
+        random_seed: int = 0,
+    ) -> None:
+        if fit_config is None:
+            self.fit_config = FitConfig(
+                prune_config=PruneConfig(),
+                importance_config=ImportanceConfig(),
+                augmentation_config=AugmentationConfig(),
+            )
+        else:
+            self.fit_config = fit_config
+        self.fire_threshold = fire_threshold
+        self.train_proportion = train_proportion
+        self.random_seed = random_seed
 
 
 def run_training(
@@ -28,8 +57,9 @@ def run_training(
     model_name: str,
     neuron_store: NeuronStore,
     all_stats: Dict[int, Dict[int, Dict[str, Any]]],
+    config: TrainConfig,
 ) -> Tuple[Dict[int, Dict[int, NeuronModel]], NeuronStore, Dict[int, Dict[int, Dict[str, Any]]]]:
-    random.seed(0)
+    random.seed(config.random_seed)
 
     neuron_models: Dict[int, Dict[int, NeuronModel]] = {}
 
@@ -42,7 +72,7 @@ def run_training(
                 samples = n2g.scrape_neuroscope_samples(model_name, layer_index, neuron_index)
 
                 split: Tuple[List[str], List[str]] = train_test_split(  # type: ignore
-                    samples, train_size=0.5, random_state=0
+                    samples, train_size=config.train_proportion, random_state=config.random_seed
                 )
                 train_samples, test_samples = split
 
@@ -56,6 +86,8 @@ def run_training(
                     activation_matrix,
                     layer_ending,
                     neuron_store,
+                    fire_threshold=config.fire_threshold,
+                    fit_config=config.fit_config,
                 )
 
                 neuron_models[layer_index][neuron_index] = neuron_model
@@ -78,6 +110,7 @@ def run(
     aug_model_name: str,
     neuron_store: NeuronStore,
     all_stats: Dict[int, Dict[int, Dict[str, Any]]],
+    config: TrainConfig,
     device: device,
 ) -> Tuple[Dict[int, Dict[int, NeuronModel]], NeuronStore, Dict[int, Dict[int, Dict[str, Any]]]]:
     model: HookedTransformer = HookedTransformer.from_pretrained(model_name).to(device)  # type: ignore
@@ -107,4 +140,5 @@ def run(
         model_name,
         neuron_store,
         all_stats,
+        config,
     )
