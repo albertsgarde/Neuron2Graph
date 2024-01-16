@@ -1,4 +1,3 @@
-import os
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -10,6 +9,7 @@ import n2g
 
 from . import fit
 from .augmenter import Augmenter
+from .neuron_model import NeuronModel
 from .neuron_store import NeuronStore
 
 
@@ -22,7 +22,6 @@ def train_and_eval(
     layer_index: int,
     neuron_index: int,
     augmenter: Augmenter,
-    graph_dir: str,
     samples: List[str],
     activation_matrix: NDArray[np.float32],
     layer_ending: str,
@@ -31,7 +30,7 @@ def train_and_eval(
     fire_threshold: float = 0.5,
     random_state: int = 0,
     train_indexes: Optional[List[int]] = None,
-) -> Dict[str, Any]:
+) -> Tuple[NeuronModel, Dict[str, Any]]:
     layer = layer_index_to_name(layer_index, layer_ending)
 
     layer_num = int(layer.split(".")[1])
@@ -59,12 +58,6 @@ def train_and_eval(
     )
     neuron_model.update_neuron_store(neuron_store)
 
-    net = neuron_model.graphviz()
-
-    file_path = os.path.join(graph_dir, f"{neuron_model.layer}_{neuron_index}")
-    with open(file_path, "w") as f:
-        f.write(net.source)
-
     print("Fitted model", flush=True)
 
     try:
@@ -81,4 +74,4 @@ def train_and_eval(
         stats = {}
         print(f"Stats failed with error: {e}", flush=True)
 
-    return stats
+    return neuron_model, stats

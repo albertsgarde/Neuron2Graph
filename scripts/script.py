@@ -7,6 +7,7 @@ import numpy as np
 import torch
 
 import n2g
+from n2g.neuron_store import NeuronStore
 
 
 def cmd_arguments() -> Tuple[str, str, List[int], int]:
@@ -68,10 +69,20 @@ def main() -> None:
     output_dir = os.path.join(repo_root, "output", model_name)
     os.makedirs(output_dir, exist_ok=True)
 
+    graph_dir = os.path.join(output_dir, "graphs")
+    neuron_store_path = os.path.join(output_dir, "neuron_store.json")
+    stats_path = os.path.join(output_dir, "stats.json")
+    # This ensures that both the base output path and the graph directory exist
+    if not os.path.exists(graph_dir):
+        os.makedirs(graph_dir)
+
+    neuron_store = NeuronStore.load(neuron_store_path) if os.path.exists(neuron_store_path) else NeuronStore()
+    all_stats = n2g.get_neuron_stats(stats_path)
+
     # ================ Run ================
     # Run training for the specified layers and neurons
 
-    neuron_store, neuron_stats = n2g.run(
+    neuron_models, neuron_store, neuron_stats = n2g.run(
         model_name,
         layer_indices,
         list(range(neurons_per_layer)),
@@ -79,12 +90,20 @@ def main() -> None:
         activation_matrix,
         word_to_casings,
         aug_model_name,
-        output_dir,
+        neuron_store,
+        all_stats,
         device,
     )
 
-    neuron_store_path = os.path.join(output_dir, "neuron_store.json")
-    stats_path = os.path.join(output_dir, "stats.json")
+    for layer_index, layer_neurons in neuron_models.items():
+        for neuron_index, neuron_model in layer_neurons.items():
+            assert neuron_model.layer == layer_index, "Neuron model layer index doesn't match expected layer index"
+            assert neuron_model.neuron == neuron_index, "Neuron model neuron index doesn't match expected neuron index"
+            net = neuron_model.graphviz()
+
+            file_path = os.path.join(graph_dir, f"{layer_index}_{neuron_index}")
+            with open(file_path, "w") as f:
+                f.write(net.source)
 
     neuron_store.save(neuron_store_path)
     with open(stats_path, "w") as ofh:

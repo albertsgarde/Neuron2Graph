@@ -1,11 +1,20 @@
 import json
+import os
 import pprint
 import random
 import typing
 from collections import defaultdict
-from typing import Dict, List
+from typing import Any, Dict, List
 
 import numpy as np
+
+
+def get_neuron_stats(stats_path: str) -> Dict[int, Dict[int, Dict[Any, Any]]]:
+    if os.path.exists(stats_path):
+        with open(stats_path) as ifh:
+            return json.load(ifh)
+    else:
+        return {}
 
 
 def get_summary_stats(path: str, verbose: bool = True) -> List[Dict[str, Dict[str, float]]]:
