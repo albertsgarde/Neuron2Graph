@@ -1,16 +1,12 @@
 import json
 import os
 import sys
-import typing
 from typing import List, Tuple
 
 import numpy as np
 import torch
-from transformer_lens.HookedTransformer import HookedTransformer
-from transformers import AutoModelForMaskedLM, AutoTokenizer, PreTrainedModel, PreTrainedTokenizer  # type: ignore
 
 import n2g
-from n2g import Augmenter, WordTokenizer
 
 
 def cmd_arguments() -> Tuple[str, str, List[int], int]:
@@ -46,9 +42,7 @@ def main() -> None:
     )
 
     # ================ Setup ================
-    device = "cuda:0" if torch.cuda.is_available() else "cpu"
-    print(f"Device: {device}", flush=True)
-    model: HookedTransformer = HookedTransformer.from_pretrained(model_name).to(device)  # type: ignore
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     repo_root: str = os.path.abspath(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -63,30 +57,13 @@ def main() -> None:
         activation_matrix = json.load(ifh)
         activation_matrix = np.array(activation_matrix)
 
-    device = "cuda:0" if torch.cuda.is_available() else "cpu"
-    print(f"Device: {device}", flush=True)
-    aug_model_checkpoint = "distilbert-base-uncased"
-    aug_model: PreTrainedModel = typing.cast(
-        PreTrainedModel,
-        AutoModelForMaskedLM.from_pretrained(aug_model_checkpoint).to(  # type: ignore
-            device
-        ),
-    )
-    aug_tokenizer: PreTrainedTokenizer = typing.cast(
-        PreTrainedTokenizer,
-        AutoTokenizer.from_pretrained(aug_model_checkpoint),  # type: ignore
-    )
-
     data_dir = os.path.join(repo_root, "data")
     if not os.path.exists(os.path.join(data_dir, "word_to_casings.json")):
         raise Exception("`word_to_casings.json` not found in `data/`.")
 
     with open(os.path.join(data_dir, "word_to_casings.json"), encoding="utf-8") as ifh:
         word_to_casings = json.load(ifh)
-
-    stick_tokens = {"'"}
-    word_tokenizer = WordTokenizer(set(), stick_tokens)
-    augmenter = Augmenter(aug_model, aug_tokenizer, word_tokenizer, word_to_casings)
+    aug_model_name = "distilbert-base-uncased"
 
     output_dir = os.path.join(repo_root, "output", model_name)
     os.makedirs(output_dir, exist_ok=True)
@@ -94,22 +71,16 @@ def main() -> None:
     # ================ Run ================
     # Run training for the specified layers and neurons
 
-    neuron_store, neuron_stats = n2g.run_training(
-        model,
-        # List of layers to run for
-        layer_indices,
-        # Number of neurons in each layer
-        list(range(neurons_per_layer)),
-        # Layer ending for the model
-        layer_ending,
-        # Augmenter
-        augmenter,
-        # Activation matrix for the model
-        activation_matrix,
-        # Model name
+    neuron_store, neuron_stats = n2g.run(
         model_name,
-        # Base path
+        layer_indices,
+        list(range(neurons_per_layer)),
+        layer_ending,
+        activation_matrix,
+        word_to_casings,
+        aug_model_name,
         output_dir,
+        device,
     )
 
     neuron_store_path = os.path.join(output_dir, "neuron_store.json")
