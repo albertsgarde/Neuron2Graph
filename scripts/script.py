@@ -94,7 +94,7 @@ def main() -> None:
     # ================ Run ================
     # Run training for the specified layers and neurons
 
-    n2g.run_training(
+    neuron_store, neuron_stats = n2g.run_training(
         model,
         # List of layers to run for
         layer_indices,
@@ -111,6 +111,13 @@ def main() -> None:
         # Base path
         output_dir,
     )
+
+    neuron_store_path = os.path.join(output_dir, "neuron_store.json")
+    stats_path = os.path.join(output_dir, "stats.json")
+
+    neuron_store.save(neuron_store_path)
+    with open(stats_path, "w") as ofh:
+        json.dump(neuron_stats, ofh, indent=2)
 
     n2g.get_summary_stats(os.path.join(output_dir, "stats.json"))
 

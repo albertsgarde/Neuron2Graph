@@ -40,7 +40,7 @@ def run_training(
     activation_matrix: NDArray[np.float32],
     model_name: str,
     output_dir: str,
-):
+) -> Tuple[NeuronStore, Dict[int, Dict[int, Dict[Any, Any]]]]:
     random.seed(0)
 
     graph_dir, neuron_store_path, stats_path = setup_paths(output_dir)
@@ -74,6 +74,4 @@ def run_training(
                 print(traceback.format_exc(), flush=True)
                 print("Failed", flush=True)
 
-    neuron_store.save(neuron_store_path)
-    with open(stats_path, "w") as ofh:
-        json.dump(all_stats, ofh, indent=2)
+    return neuron_store, all_stats
