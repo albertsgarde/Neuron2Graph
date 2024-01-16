@@ -1,5 +1,6 @@
 import copy
 import typing
+from dataclasses import dataclass
 from string import punctuation
 from typing import Dict, List, Set, Tuple
 
@@ -21,7 +22,7 @@ class Augmenter:
         model_tokenizer: PreTrainedTokenizer,
         word_tokenizer: WordTokenizer,
         word_to_casings: Dict[str, List[Tuple[str, int]]],
-        device: str = "cuda:0",
+        device: torch.device,
     ):
         self.model: PreTrainedModel = model
         self.model_tokenizer = model_tokenizer
@@ -36,7 +37,7 @@ class Augmenter:
         text: str,
         max_char_position: int,
         important_tokens: Set[str],
-        n: int = 5,
+        max_augmentations: int,
     ) -> Tuple[List[str], List[int]]:
         joiner = ""
         tokens = self.word_tokenizer(text)
@@ -134,10 +135,18 @@ class Augmenter:
                 positions.append(char_position)
                 subbed += 1
 
-                if subbed >= n:
+                if subbed >= max_augmentations:
                     break
 
         return new_texts, positions
+
+
+@dataclass
+class AugmentationConfig:
+    max_length: int = 1024
+    inclusion_threshold: float = -0.5
+    exclusion_threshold: float = -0.5
+    max_augmentations: int = 5
 
 
 def augment(
@@ -147,10 +156,7 @@ def augment(
     prompt: str,
     aug: Augmenter,
     important_tokens: Set[str],
-    max_length: int = 1024,
-    inclusion_threshold: float = -0.5,
-    exclusion_threshold: float = -0.5,
-    n: int = 5,
+    config: AugmentationConfig,
 ) -> Tuple[List[str], List[str]]:
     """Generate variations of a prompt using an augmenter"""
     prepend_bos = True
@@ -160,8 +166,8 @@ def augment(
         model.to_str_tokens(prompt, prepend_bos=prepend_bos),  # type: ignore
     )
 
-    if len(tokens[0]) > max_length:
-        tokens = tokens[0, :max_length].unsqueeze(0)
+    if len(tokens[0]) > config.max_length:
+        tokens = tokens[0, : config.max_length].unsqueeze(0)
 
     _logits, cache = model.run_with_cache(tokens)  # type: ignore
     activations = cache[layer][0, :, index]
@@ -173,13 +179,13 @@ def augment(
     positive_prompts: List[str] = [prompt]
     negative_prompts: List[str] = []
 
-    if n == 0:
+    if config.max_augmentations == 0:
         return positive_prompts, negative_prompts
 
     aug_prompts, aug_positions = aug.augment(
         prompt,
         max_char_position=max_char_position,
-        n=n,
+        max_augmentations=config.max_augmentations,
         important_tokens=important_tokens,
     )
     if not aug_prompts:
@@ -204,9 +210,9 @@ def augment(
 
         proportion_drop: float = (aug_max - initial_max) / initial_max
 
-        if proportion_drop >= inclusion_threshold:
+        if proportion_drop >= config.inclusion_threshold:
             positive_prompts.append(aug_prompt)
-        elif proportion_drop < exclusion_threshold:
+        elif proportion_drop < config.exclusion_threshold:
             negative_prompts.append(aug_prompt)
 
     return positive_prompts, negative_prompts

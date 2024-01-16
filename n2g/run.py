@@ -88,7 +88,7 @@ def run(
 
     stick_tokens = {"'"}
     word_tokenizer = WordTokenizer(set(), stick_tokens)
-    augmenter = Augmenter(aug_model, aug_tokenizer, word_tokenizer, word_to_casings)
+    augmenter = Augmenter(aug_model, aug_tokenizer, word_tokenizer, word_to_casings, device)
 
     return run_training(
         model,

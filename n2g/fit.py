@@ -10,7 +10,7 @@ from torch import Tensor
 from transformer_lens.HookedTransformer import HookedTransformer
 
 from . import augmenter, word_tokenizer
-from .augmenter import Augmenter
+from .augmenter import AugmentationConfig, Augmenter
 from .neuron_model import NeuronModel
 
 T = TypeVar("T")
@@ -262,6 +262,7 @@ def augment_and_return(
     base_max_act: float | None = None,
     use_index: bool = False,
     scale_factor: float = 1,
+    augmentation_config: AugmentationConfig = AugmentationConfig(),
 ) -> List[Tuple[NDArray[np.float32], List[Tuple[str, float]]]]:
     info: List[Tuple[NDArray[np.float32], List[Tuple[str, float]]]] = []
     (
@@ -289,6 +290,7 @@ def augment_and_return(
         pruned_prompt,
         aug,
         important_tokens=set(important_tokens),
+        config=augmentation_config,
     )
 
     for prompt in positive_prompts:
