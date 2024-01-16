@@ -1,5 +1,6 @@
 import math
 import typing
+from dataclasses import dataclass
 from typing import Any, List, Optional, Tuple, TypeVar
 
 import numpy as np
@@ -40,21 +41,26 @@ def batch(arr: List[T], batch_size: int) -> List[List[T]]:
     return groups
 
 
+@dataclass
+class PruneConfig:
+    max_length: int = 1024
+    proportion_threshold: float = -0.5
+    absolute_threshold: Optional[float] = None
+    token_activation_threshold: float = 1
+    window: int = 0
+    cutoff: int = 30
+    batch_size: int = 4
+    max_post_context_tokens: int = 5
+    skip_threshold: int = 0
+    skip_interval: int = 5
+
+
 def prune(
     model: HookedTransformer,
     layer: str,
     neuron: int,
     prompt: str,
-    max_length: int = 1024,
-    proportion_threshold: float = -0.5,
-    absolute_threshold: Optional[float] = None,
-    token_activation_threshold: float = 1,
-    window: int = 0,
-    cutoff: int = 30,
-    batch_size: int = 4,
-    max_post_context_tokens: int = 5,
-    skip_threshold: int = 0,
-    skip_interval: int = 5,
+    config: PruneConfig,
 ) -> List[Tuple[str, float, float]]:
     """
     Prune an input prompt to the shortest string that preserves x% of neuron activation on the most activating token.
@@ -64,8 +70,8 @@ def prune(
     tokens: Int[Tensor, " batch_pos"] = model.to_tokens(prompt, prepend_bos=prepend_bos)
     str_tokens: List[str] = model.to_str_tokens(prompt, prepend_bos=prepend_bos)  # type: ignore
 
-    if len(tokens[0]) > max_length:
-        tokens = tokens[0, :max_length].unsqueeze(0)
+    if len(tokens[0]) > config.max_length:
+        tokens = tokens[0, : config.max_length].unsqueeze(0)
 
     _logits, cache = model.run_with_cache(tokens)  # type: ignore
     activations = cache[layer][0, :, neuron].cpu()
@@ -79,7 +85,7 @@ def prune(
     ) = word_tokenizer.sentence_tokenizer(str_tokens)
 
     strong_indices: Tensor = torch.where(  # type: ignore
-        activations >= token_activation_threshold * full_initial_max
+        activations >= config.token_activation_threshold * full_initial_max
     )[0]
     strong_activations = activations[strong_indices].cpu()
     strong_indices = strong_indices.cpu()
@@ -105,15 +111,15 @@ def prune(
         added_tokens: List[int] = []
 
         count = 0
-        full_prior = prior_context[: max(0, initial_argmax - window + 1)]
+        full_prior = prior_context[: max(0, initial_argmax - config.window + 1)]
 
         for i in reversed(range(len(full_prior))):
             count += 1
 
-            if count > cutoff:
+            if count > config.cutoff:
                 break
 
-            if not count == len(full_prior) and count >= skip_threshold and count % skip_interval != 0:
+            if not count == len(full_prior) and count >= config.skip_threshold and count % config.skip_interval != 0:
                 continue
 
             truncated_prompt = prior_context[i:]
@@ -121,8 +127,8 @@ def prune(
             truncated_prompts.append(joined)
             added_tokens.append(i)
 
-        batched_truncated_prompts = batch(truncated_prompts, batch_size)
-        batched_added_tokens = batch(added_tokens, batch_size)
+        batched_truncated_prompts = batch(truncated_prompts, config.batch_size)
+        batched_added_tokens = batch(added_tokens, config.batch_size)
 
         finished = False
 
@@ -146,8 +152,8 @@ def prune(
                 if (
                     truncated_argmax == initial_argmax
                     and (
-                        (truncated_max - initial_max) / initial_max > proportion_threshold
-                        or (absolute_threshold is not None and truncated_max >= absolute_threshold)
+                        (truncated_max - initial_max) / initial_max > config.proportion_threshold
+                        or (config.absolute_threshold is not None and truncated_max >= config.absolute_threshold)
                     )
                 ) or (i == len(batched_truncated_prompts) - 1 and j == len(all_truncated_activations) - 1):
                     shortest_successful_prompt = shortest_prompt
@@ -162,7 +168,7 @@ def prune(
 
         pruned_sentence: str = shortest_successful_prompt
 
-        pruned_sentence += "".join(post_context[:max_post_context_tokens])
+        pruned_sentence += "".join(post_context[: config.max_post_context_tokens])
 
         pruned_sentences.append(pruned_sentence)
         initial_maxes.append(initial_max)
@@ -374,18 +380,14 @@ def fit_neuron_model(
     base_max_act: float,
     activation_threshold: float = 0.5,
     importance_threshold: float = 0.75,
+    prune_config: PruneConfig = PruneConfig(),
 ) -> NeuronModel:
     all_info: List[List[Tuple[NDArray[Any], List[Tuple[str, float]]]]] = []
     for i, snippet in enumerate(train_samples):
         # if i % 10 == 0:
         print(f"Processing {i + 1} of {len(train_samples)}", flush=True)
 
-        pruned_results = prune(
-            model,
-            layer,
-            neuron_index,
-            snippet,
-        )
+        pruned_results = prune(model, layer, neuron_index, snippet, config=prune_config)
 
         for pruned_prompt, initial_max_act, truncated_max_act in pruned_results:
             scale_factor = initial_max_act / truncated_max_act
