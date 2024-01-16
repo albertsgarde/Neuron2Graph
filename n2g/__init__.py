@@ -4,8 +4,8 @@ from .fit import FitConfig, ImportanceConfig, PruneConfig, fit_neuron_model
 from .neuron_model import NeuronModel
 from .neuron_store import NeuronStore
 from .run import TrainConfig, run, run_training
+from .scrape import scrape_neuroscope_samples
 from .stats import get_neuron_stats, get_summary_stats
-from .training_samples import scrape_neuroscope_samples
 
 __all__ = [
     "Augmenter",

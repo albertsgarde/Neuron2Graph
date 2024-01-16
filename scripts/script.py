@@ -5,7 +5,6 @@ import sys
 from pathlib import Path
 from typing import List, Tuple
 
-import numpy as np
 import torch
 
 import n2g
@@ -52,17 +51,6 @@ def main() -> None:
 
     data_dir = repo_root / "data"
 
-    # Save the activation matrix for the model to data/
-    activation_matrix_path = data_dir / f"activation_matrix-{model_name}.json"
-    if not activation_matrix_path.exists():
-        raise Exception(
-            f"Activation matrix not found for model {model_name}. "
-            "Either download it from the repo or scrape it with `scrape.py`."
-        )
-    with open(activation_matrix_path, "r") as ifh:
-        activation_matrix = json.load(ifh)
-        activation_matrix = np.array(activation_matrix)
-
     word_to_casings_path = data_dir / "word_to_casings.json"
     if not word_to_casings_path.exists():
         raise Exception("`word_to_casings.json` not found in `data/`.")
@@ -92,7 +80,6 @@ def main() -> None:
         layer_indices,
         list(range(neurons_per_layer)),
         layer_ending,
-        activation_matrix,
         word_to_casings,
         aug_model_name,
         neuron_store,

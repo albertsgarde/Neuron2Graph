@@ -1,7 +1,5 @@
 from typing import Any, Dict, List, Tuple
 
-import numpy as np
-from numpy.typing import NDArray
 from transformer_lens.HookedTransformer import HookedTransformer
 
 import n2g
@@ -24,16 +22,13 @@ def train_and_eval(
     augmenter: Augmenter,
     train_samples: List[str],
     test_samples: List[str],
-    activation_matrix: NDArray[np.float32],
+    base_max_activation: float,
     layer_ending: str,
     neuron_store: NeuronStore,
     fire_threshold: float,
     fit_config: FitConfig,
 ) -> Tuple[NeuronModel, Dict[str, Any]]:
     layer = layer_index_to_name(layer_index, layer_ending)
-
-    layer_num = int(layer.split(".")[1])
-    base_max_act = float(activation_matrix[layer_num, neuron_index])
 
     neuron_model = fit.fit_neuron_model(
         model,
@@ -42,7 +37,7 @@ def train_and_eval(
         neuron_index,
         train_samples,
         augmenter,
-        base_max_act,
+        base_max_activation,
         config=fit_config,
     )
     neuron_model.update_neuron_store(neuron_store)
@@ -55,7 +50,7 @@ def train_and_eval(
             layer,
             neuron_index,
             neuron_model,
-            base_max_act,
+            base_max_activation,
             test_samples,
             fire_threshold,
         )

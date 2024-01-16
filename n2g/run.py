@@ -4,16 +4,12 @@ import typing
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
-import numpy as np
-from numpy.typing import NDArray
 from sklearn.model_selection import train_test_split  # type: ignore
 from torch import device
 from transformer_lens.HookedTransformer import HookedTransformer
 from transformers import AutoModelForMaskedLM, AutoTokenizer, PreTrainedModel, PreTrainedTokenizer  # type: ignore
 
-import n2g
-
-from . import train_and_eval
+from . import scrape, train_and_eval
 from .augmenter import AugmentationConfig, Augmenter, WordToCasings
 from .fit import FitConfig, ImportanceConfig, PruneConfig
 from .neuron_model import NeuronModel
@@ -54,7 +50,6 @@ def run_training(
     neuron_indices: List[int],
     layer_ending: str,
     augmenter: Augmenter,
-    activation_matrix: NDArray[np.float32],
     model_name: str,
     neuron_store: NeuronStore,
     all_stats: Dict[int, Dict[int, Dict[str, Any]]],
@@ -70,7 +65,7 @@ def run_training(
         for neuron_index in neuron_indices:
             print(f"{layer_index=} {neuron_index=}", flush=True)
             try:
-                samples = n2g.scrape_neuroscope_samples(model_name, layer_index, neuron_index)
+                samples, base_max_activation = scrape.scrape_neuron(model_name, layer_index, neuron_index)
 
                 split: Tuple[List[str], List[str]] = train_test_split(  # type: ignore
                     samples, train_size=config.train_proportion, random_state=config.random_seed
@@ -84,7 +79,7 @@ def run_training(
                     augmenter,
                     train_samples,
                     test_samples,
-                    activation_matrix,
+                    base_max_activation,
                     layer_ending,
                     neuron_store,
                     fire_threshold=config.fire_threshold,
@@ -106,7 +101,6 @@ def run(
     layer_indices: List[int],
     neuron_indices: List[int],
     layer_ending: str,
-    activation_matrix: NDArray[np.float32],
     word_to_casings: WordToCasings,
     aug_model_name: str,
     neuron_store: NeuronStore,
@@ -137,7 +131,6 @@ def run(
         neuron_indices,
         layer_ending,
         augmenter,
-        activation_matrix,
         model_name,
         neuron_store,
         all_stats,
