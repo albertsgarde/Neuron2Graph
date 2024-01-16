@@ -13,7 +13,8 @@ from transformers import AutoModelForMaskedLM, AutoTokenizer, PreTrainedModel, P
 
 import n2g
 
-from .augmenter import AugmentationConfig, Augmenter
+from . import train_and_eval
+from .augmenter import AugmentationConfig, Augmenter, WordToCasings
 from .fit import FitConfig, ImportanceConfig, PruneConfig
 from .neuron_model import NeuronModel
 from .neuron_store import NeuronStore
@@ -76,7 +77,7 @@ def run_training(
                 )
                 train_samples, test_samples = split
 
-                neuron_model, stats = n2g.train_and_eval(
+                neuron_model, stats = train_and_eval.train_and_eval(
                     model,
                     layer_index,
                     neuron_index,
@@ -106,7 +107,7 @@ def run(
     neuron_indices: List[int],
     layer_ending: str,
     activation_matrix: NDArray[np.float32],
-    word_to_casings: Any,
+    word_to_casings: WordToCasings,
     aug_model_name: str,
     neuron_store: NeuronStore,
     all_stats: Dict[int, Dict[int, Dict[str, Any]]],

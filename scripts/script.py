@@ -9,6 +9,7 @@ import numpy as np
 import torch
 
 import n2g
+from n2g.augmenter import WordToCasings
 from n2g.neuron_store import NeuronStore
 
 
@@ -67,7 +68,7 @@ def main() -> None:
         raise Exception("`word_to_casings.json` not found in `data/`.")
 
     with open(word_to_casings_path, "r", encoding="utf-8") as ifh:
-        word_to_casings = json.load(ifh)
+        word_to_casings: WordToCasings = json.load(ifh)
     aug_model_name = "distilbert-base-uncased"
 
     output_dir = repo_root / "output" / model_name

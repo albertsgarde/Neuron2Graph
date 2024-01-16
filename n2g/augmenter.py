@@ -12,6 +12,8 @@ from transformers import PreTrainedModel, PreTrainedTokenizer  # type: ignore
 
 from .word_tokenizer import WordTokenizer
 
+WordToCasings = Dict[str, List[Tuple[str, int]]]
+
 
 class Augmenter:
     """Uses BERT to generate variations on input text by masking words and substituting with most likely predictions"""
@@ -21,7 +23,7 @@ class Augmenter:
         model: PreTrainedModel,
         model_tokenizer: PreTrainedTokenizer,
         word_tokenizer: WordTokenizer,
-        word_to_casings: Dict[str, List[Tuple[str, int]]],
+        word_to_casings: WordToCasings,
         device: torch.device,
     ):
         self.model: PreTrainedModel = model
