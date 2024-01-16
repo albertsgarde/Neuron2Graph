@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
+from sklearn.model_selection import train_test_split  # type: ignore
 from torch import device
 from transformer_lens.HookedTransformer import HookedTransformer
 from transformers import AutoModelForMaskedLM, AutoTokenizer, PreTrainedModel, PreTrainedTokenizer  # type: ignore
@@ -38,14 +39,20 @@ def run_training(
         for neuron_index in neuron_indices:
             print(f"{layer_index=} {neuron_index=}", flush=True)
             try:
-                training_samples = n2g.scrape_neuroscope_samples(model_name, layer_index, neuron_index)
+                samples = n2g.scrape_neuroscope_samples(model_name, layer_index, neuron_index)
+
+                split: Tuple[List[str], List[str]] = train_test_split(  # type: ignore
+                    samples, train_size=0.5, random_state=0
+                )
+                train_samples, test_samples = split
 
                 neuron_model, stats = n2g.train_and_eval(
                     model,
                     layer_index,
                     neuron_index,
                     augmenter,
-                    training_samples,
+                    train_samples,
+                    test_samples,
                     activation_matrix,
                     layer_ending,
                     neuron_store,
