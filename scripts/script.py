@@ -58,7 +58,7 @@ def main() -> None:
             f"Activation matrix not found for model {model_name}. "
             "Either download it from the repo or scrape it with `scrape.py`."
         )
-    with open(activation_matrix_path) as ifh:
+    with open(activation_matrix_path, "r") as ifh:
         activation_matrix = json.load(ifh)
         activation_matrix = np.array(activation_matrix)
 
@@ -66,7 +66,7 @@ def main() -> None:
     if not word_to_casings_path.exists():
         raise Exception("`word_to_casings.json` not found in `data/`.")
 
-    with open(word_to_casings_path, encoding="utf-8") as ifh:
+    with open(word_to_casings_path, "r", encoding="utf-8") as ifh:
         word_to_casings = json.load(ifh)
     aug_model_name = "distilbert-base-uncased"
 

@@ -26,8 +26,8 @@ def run_training(
     activation_matrix: NDArray[np.float32],
     model_name: str,
     neuron_store: NeuronStore,
-    all_stats: Dict[int, Dict[int, Dict[Any, Any]]],
-) -> Tuple[Dict[int, Dict[int, NeuronModel]], NeuronStore, Dict[int, Dict[int, Dict[Any, Any]]]]:
+    all_stats: Dict[int, Dict[int, Dict[str, Any]]],
+) -> Tuple[Dict[int, Dict[int, NeuronModel]], NeuronStore, Dict[int, Dict[int, Dict[str, Any]]]]:
     random.seed(0)
 
     neuron_models: Dict[int, Dict[int, NeuronModel]] = {}
@@ -70,9 +70,9 @@ def run(
     word_to_casings: Any,
     aug_model_name: str,
     neuron_store: NeuronStore,
-    all_stats: Dict[int, Dict[int, Dict[Any, Any]]],
+    all_stats: Dict[int, Dict[int, Dict[str, Any]]],
     device: device,
-) -> Tuple[Dict[int, Dict[int, NeuronModel]], NeuronStore, Dict[int, Dict[int, Dict[Any, Any]]]]:
+) -> Tuple[Dict[int, Dict[int, NeuronModel]], NeuronStore, Dict[int, Dict[int, Dict[str, Any]]]]:
     model: HookedTransformer = HookedTransformer.from_pretrained(model_name).to(device)  # type: ignore
 
     aug_model: PreTrainedModel = typing.cast(
