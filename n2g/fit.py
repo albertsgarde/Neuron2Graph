@@ -9,9 +9,8 @@ from numpy.typing import NDArray
 from torch import Tensor
 from transformer_lens.HookedTransformer import HookedTransformer
 
-import n2g
-from n2g.augmenter import Augmenter
-
+from . import augmenter, word_tokenizer
+from .augmenter import Augmenter
 from .neuron_model import NeuronModel
 
 T = TypeVar("T")
@@ -77,7 +76,7 @@ def prune(
         sentences,
         _sentence_to_token_indices,
         token_to_sentence_indices,
-    ) = n2g.word_tokenizer.sentence_tokenizer(str_tokens)
+    ) = word_tokenizer.sentence_tokenizer(str_tokens)
 
     strong_indices: Tensor = torch.where(  # type: ignore
         activations >= token_activation_threshold * full_initial_max
@@ -283,7 +282,7 @@ def augment_and_return(
     if base_max_act is not None:
         initial_max_act = base_max_act
 
-    positive_prompts, negative_prompts = n2g.augmenter.augment(
+    positive_prompts, negative_prompts = augmenter.augment(
         model,
         layer,
         neuron,

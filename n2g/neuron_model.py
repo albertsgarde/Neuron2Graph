@@ -6,7 +6,7 @@ import numpy as np
 from graphviz import Digraph, escape  # type: ignore
 from numpy.typing import NDArray
 
-from n2g.neuron_store import NeuronStore
+from .neuron_store import NeuronStore
 
 
 class Element(NamedTuple):

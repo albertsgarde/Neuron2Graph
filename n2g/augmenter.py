@@ -9,7 +9,7 @@ from torch.nn import functional
 from transformer_lens.HookedTransformer import HookedTransformer
 from transformers import PreTrainedModel, PreTrainedTokenizer  # type: ignore
 
-from n2g.word_tokenizer import WordTokenizer
+from .word_tokenizer import WordTokenizer
 
 
 class Augmenter:

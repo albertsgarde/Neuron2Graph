@@ -7,8 +7,10 @@ from sklearn.model_selection import train_test_split  # type: ignore
 from transformer_lens.HookedTransformer import HookedTransformer
 
 import n2g
-from n2g.augmenter import Augmenter
-from n2g.neuron_store import NeuronStore
+
+from . import fit
+from .augmenter import Augmenter
+from .neuron_store import NeuronStore
 
 
 def layer_index_to_name(layer_index: int, layer_ending: str) -> str:
@@ -46,7 +48,7 @@ def train_and_eval(
 
     all_train_samples = train_samples
 
-    neuron_model = n2g.fit_neuron_model(
+    neuron_model = fit.fit_neuron_model(
         model,
         layer,
         layer_index,
