@@ -8,7 +8,8 @@ from transformer_lens.HookedTransformer import HookedTransformer
 import n2g
 
 from . import fit
-from .augmenter import Augmenter
+from .augmenter import AugmentationConfig, Augmenter
+from .fit import FitConfig, ImportanceConfig, PruneConfig
 from .neuron_model import NeuronModel
 from .neuron_store import NeuronStore
 
@@ -55,6 +56,9 @@ def train_and_eval(
         all_train_samples,
         augmenter,
         base_max_act,
+        config=FitConfig(
+            prune_config=PruneConfig(), importance_config=ImportanceConfig(), augmentation_config=AugmentationConfig()
+        ),
     )
     neuron_model.update_neuron_store(neuron_store)
 

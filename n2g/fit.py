@@ -178,17 +178,22 @@ def prune(
     return list(zip(pruned_sentences, initial_maxes, truncated_maxes))
 
 
+@dataclass
+class ImportanceConfig:
+    max_length: int = 1024
+    masking_token: int = 1
+    threshold: float = 0.8
+
+
 def measure_importance(
     model: HookedTransformer,
     layer: str,
     neuron: int,
     prompt: str,
     max_activation: float,
-    max_length: int = 1024,
-    masking_token: int = 1,
-    threshold: float = 0.8,
-    scale_factor: float = 1,
-) -> Tuple[NDArray[np.float32], float, List[str], List[Tuple[str, float]], int]:
+    scale_factor: float,
+    config: ImportanceConfig,
+) -> Tuple[NDArray[np.float32], List[str], List[Tuple[str, float]]]:
     """Compute a measure of token importance by masking each token and measuring the drop in activation on
     the max activating token"""
 
@@ -196,15 +201,15 @@ def measure_importance(
     tokens: Int[Tensor, "1 prompt_length"] = model.to_tokens(prompt, prepend_bos=prepend_bos)
     str_tokens: List[str] = model.to_str_tokens(prompt, prepend_bos=prepend_bos)  # type: ignore
 
-    if len(tokens[0]) > max_length:
-        tokens = tokens[0, :max_length].unsqueeze(0)
+    if len(tokens[0]) > config.max_length:
+        tokens = tokens[0, : config.max_length].unsqueeze(0)
 
     importances_matrix: List[NDArray[np.float32]] = []
 
     masked_prompts: Int[Tensor, "prompt_length+1 prompt_length"] = tokens.repeat(len(tokens[0]) + 1, 1)
 
     for i in range(1, len(masked_prompts)):
-        masked_prompts[i, i - 1] = masking_token
+        masked_prompts[i, i - 1] = config.masking_token
 
     _logits, cache = model.run_with_cache(masked_prompts)  # type: ignore
     all_activations: Float[Tensor, "prompt_length+1 prompt_length"] = cache[layer][:, :, neuron].cpu()
@@ -238,16 +243,14 @@ def measure_importance(
 
         str_token, _ = tokens_and_importances[i]
         tokens_and_importances[i] = str_token, normalised_activation
-        if normalised_activation >= threshold and str_token != "<|endoftext|>":
+        if normalised_activation >= config.threshold and str_token != "<|endoftext|>":
             important_tokens.append(str_token)
 
     # Flip so we have the importance of all tokens for a given token
     return (
         np.array(importances_matrix),
-        initial_max,
         important_tokens,
         tokens_and_activations,
-        initial_argmax,
     )
 
 
@@ -258,16 +261,15 @@ def augment_and_return(
     aug: Augmenter,
     pruned_prompt: str,
     base_max_act: float,
-    scale_factor: float = 1,
-    augmentation_config: AugmentationConfig = AugmentationConfig(),
+    scale_factor: float,
+    importance_config: ImportanceConfig,
+    augmentation_config: AugmentationConfig,
 ) -> List[Tuple[NDArray[np.float32], List[Tuple[str, float]]]]:
     info: List[Tuple[NDArray[np.float32], List[Tuple[str, float]]]] = []
     (
         importances_matrix,
-        _initial_max_act,
         important_tokens,
         tokens_and_activations,
-        _initial_max_index,
     ) = measure_importance(
         model,
         layer,
@@ -275,6 +277,7 @@ def augment_and_return(
         pruned_prompt,
         max_activation=base_max_act,
         scale_factor=scale_factor,
+        config=importance_config,
     )
 
     positive_prompts, negative_prompts = augmenter.augment(
@@ -290,10 +293,8 @@ def augment_and_return(
     for prompt in positive_prompts:
         (
             importances_matrix,
-            _max_act,
-            _,
+            _important_tokens,
             tokens_and_activations,
-            _max_index,
         ) = measure_importance(
             model,
             layer,
@@ -301,16 +302,15 @@ def augment_and_return(
             prompt,
             max_activation=base_max_act,
             scale_factor=scale_factor,
+            config=importance_config,
         )
         info.append((importances_matrix, tokens_and_activations))
 
     for prompt in negative_prompts:
         (
             importances_matrix,
-            _max_act,
-            _,
+            _important_tokens,
             tokens_and_activations,
-            _max_index,
         ) = measure_importance(
             model,
             layer,
@@ -318,10 +318,20 @@ def augment_and_return(
             prompt,
             max_activation=base_max_act,
             scale_factor=scale_factor,
+            config=importance_config,
         )
         info.append((importances_matrix, tokens_and_activations))
 
     return info
+
+
+@dataclass
+class FitConfig:
+    prune_config: PruneConfig
+    importance_config: ImportanceConfig
+    augmentation_config: AugmentationConfig
+    activation_threshold: float = 0.5
+    importance_threshold: float = 0.75
 
 
 def fit_neuron_model(
@@ -332,16 +342,13 @@ def fit_neuron_model(
     train_samples: List[str],
     augmenter: Augmenter,
     base_max_act: float,
-    activation_threshold: float = 0.5,
-    importance_threshold: float = 0.75,
-    prune_config: PruneConfig = PruneConfig(),
+    config: FitConfig,
 ) -> NeuronModel:
     all_info: List[List[Tuple[NDArray[Any], List[Tuple[str, float]]]]] = []
     for i, snippet in enumerate(train_samples):
-        # if i % 10 == 0:
         print(f"Processing {i + 1} of {len(train_samples)}", flush=True)
 
-        pruned_results = prune(model, layer, neuron_index, snippet, config=prune_config)
+        pruned_results = prune(model, layer, neuron_index, snippet, config=config.prune_config)
 
         for pruned_prompt, initial_max_act, truncated_max_act in pruned_results:
             scale_factor = initial_max_act / truncated_max_act
@@ -354,14 +361,16 @@ def fit_neuron_model(
                 pruned_prompt,
                 base_max_act=base_max_act,
                 scale_factor=scale_factor,
+                importance_config=config.importance_config,
+                augmentation_config=config.augmentation_config,
             )
             all_info.append(info)
 
     neuron_model = NeuronModel(
         layer_index,
         neuron_index,
-        activation_threshold,
-        importance_threshold,
+        config.activation_threshold,
+        config.importance_threshold,
     )
     neuron_model.fit(all_info)
     return neuron_model
