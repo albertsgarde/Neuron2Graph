@@ -183,9 +183,8 @@ def measure_importance(
     layer: str,
     neuron: int,
     prompt: str,
-    initial_argmax: int | None = None,
+    max_activation: float,
     max_length: int = 1024,
-    max_activation: float | None = None,
     masking_token: int = 1,
     threshold: float = 0.8,
     scale_factor: float = 1,
@@ -213,16 +212,9 @@ def measure_importance(
     all_masked_activations: Float[Tensor, "prompt_length prompt_length"] = all_activations[1:, :]
     activations: Float[Tensor, " prompt_length"] = all_activations[0, :]
 
-    if initial_argmax is None:
-        initial_argmax = typing.cast(int, torch.argmax(activations).item())
-    else:
-        # This could be wrong
-        initial_argmax = min(initial_argmax, len(activations) - 1)
+    initial_argmax = typing.cast(int, torch.argmax(activations).item())
 
     initial_max: float = typing.cast(float, activations[initial_argmax].item())
-
-    if max_activation is None:
-        max_activation = initial_max
 
     tokens_and_activations: List[Tuple[str, float]] = [
         (str_token, round(activation.item() * scale_factor / max_activation, 3))
@@ -265,18 +257,17 @@ def augment_and_return(
     neuron: int,
     aug: Augmenter,
     pruned_prompt: str,
-    base_max_act: float | None = None,
-    use_index: bool = False,
+    base_max_act: float,
     scale_factor: float = 1,
     augmentation_config: AugmentationConfig = AugmentationConfig(),
 ) -> List[Tuple[NDArray[np.float32], List[Tuple[str, float]]]]:
     info: List[Tuple[NDArray[np.float32], List[Tuple[str, float]]]] = []
     (
         importances_matrix,
-        initial_max_act,
+        _initial_max_act,
         important_tokens,
         tokens_and_activations,
-        initial_max_index,
+        _initial_max_index,
     ) = measure_importance(
         model,
         layer,
@@ -285,9 +276,6 @@ def augment_and_return(
         max_activation=base_max_act,
         scale_factor=scale_factor,
     )
-
-    if base_max_act is not None:
-        initial_max_act = base_max_act
 
     positive_prompts, negative_prompts = augmenter.augment(
         model,
@@ -300,71 +288,37 @@ def augment_and_return(
     )
 
     for prompt in positive_prompts:
-        if use_index:
-            (
-                importances_matrix,
-                _max_act,
-                _,
-                tokens_and_activations,
-                _max_index,
-            ) = measure_importance(
-                model,
-                layer,
-                neuron,
-                prompt,
-                max_activation=initial_max_act,
-                initial_argmax=initial_max_index,
-                scale_factor=scale_factor,
-            )
-        else:
-            (
-                importances_matrix,
-                _max_act,
-                _,
-                tokens_and_activations,
-                _max_index,
-            ) = measure_importance(
-                model,
-                layer,
-                neuron,
-                prompt,
-                max_activation=initial_max_act,
-                scale_factor=scale_factor,
-            )
+        (
+            importances_matrix,
+            _max_act,
+            _,
+            tokens_and_activations,
+            _max_index,
+        ) = measure_importance(
+            model,
+            layer,
+            neuron,
+            prompt,
+            max_activation=base_max_act,
+            scale_factor=scale_factor,
+        )
         info.append((importances_matrix, tokens_and_activations))
 
     for prompt in negative_prompts:
-        if use_index:
-            (
-                importances_matrix,
-                _max_act,
-                _,
-                tokens_and_activations,
-                _max_index,
-            ) = measure_importance(
-                model,
-                layer,
-                neuron,
-                prompt,
-                max_activation=initial_max_act,
-                initial_argmax=initial_max_index,
-                scale_factor=scale_factor,
-            )
-        else:
-            (
-                importances_matrix,
-                _max_act,
-                _,
-                tokens_and_activations,
-                _max_index,
-            ) = measure_importance(
-                model,
-                layer,
-                neuron,
-                prompt,
-                max_activation=initial_max_act,
-                scale_factor=scale_factor,
-            )
+        (
+            importances_matrix,
+            _max_act,
+            _,
+            tokens_and_activations,
+            _max_index,
+        ) = measure_importance(
+            model,
+            layer,
+            neuron,
+            prompt,
+            max_activation=base_max_act,
+            scale_factor=scale_factor,
+        )
         info.append((importances_matrix, tokens_and_activations))
 
     return info
