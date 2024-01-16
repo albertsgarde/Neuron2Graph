@@ -370,6 +370,8 @@ def fit_neuron_model(
     train_samples: List[str],
     augmenter: Augmenter,
     base_max_act: float,
+    activation_threshold: float = 0.5,
+    importance_threshold: float = 0.75,
 ) -> NeuronModel:
     all_info: List[List[Tuple[NDArray[Any], List[Tuple[str, float]]]]] = []
     for i, snippet in enumerate(train_samples):
@@ -397,6 +399,11 @@ def fit_neuron_model(
             )
             all_info.append(info)
 
-    neuron_model = NeuronModel(layer_index, neuron_index)
+    neuron_model = NeuronModel(
+        layer_index,
+        neuron_index,
+        activation_threshold,
+        importance_threshold,
+    )
     neuron_model.fit(all_info)
     return neuron_model

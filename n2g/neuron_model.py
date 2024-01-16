@@ -49,13 +49,17 @@ class NeuronNode:
 class NeuronEdge:
     def __init__(
         self,
-        weight: float = 0,
-        parent: Optional[NeuronNode] = None,
-        child: Optional[NeuronNode] = None,
+        weight: float,
+        parent: Optional[NeuronNode],
+        child: Optional[NeuronNode],
     ):
         self.weight = weight
         self.parent = parent
         self.child = child
+
+    @staticmethod
+    def create_root() -> "NeuronEdge":
+        return NeuronEdge(0, None, None)
 
     def __repr__(self):
         parent_str = json.dumps(self.parent.id_) if self.parent is not None else "None"
@@ -68,8 +72,8 @@ class NeuronModel:
         self,
         layer: int,
         neuron: int,
-        activation_threshold: float = 0.5,
-        importance_threshold: float = 0.75,
+        activation_threshold: float,
+        importance_threshold: float,
     ):
         self.layer = layer
         self.neuron = neuron
@@ -85,7 +89,7 @@ class NeuronModel:
                 Element(0, 0, self.root_token, False, False, True, False, self.root_token),
                 -1,
             ),
-            NeuronEdge(),
+            NeuronEdge.create_root(),
         )
         self.trie_root = (
             NeuronNode(
@@ -93,7 +97,7 @@ class NeuronModel:
                 Element(0, 0, self.root_token, False, False, True, False, self.root_token),
                 -1,
             ),
-            NeuronEdge(),
+            NeuronEdge.create_root(),
         )
         self.activation_threshold = activation_threshold
         self.importance_threshold = importance_threshold
