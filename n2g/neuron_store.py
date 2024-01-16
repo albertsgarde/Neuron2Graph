@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Dict, List, Set
 
 
@@ -18,7 +19,7 @@ class NeuronStore:
         return {token: list(indices) for token, indices in store.items()}
 
     @staticmethod
-    def load(path: str) -> NeuronStore:
+    def load(path: Path) -> NeuronStore:
         with open(path) as file:
             store = json.load(file)
             activating: Dict[str, List[str]] = store["activating"]
@@ -29,7 +30,7 @@ class NeuronStore:
             result._important = NeuronStore._store_to_sets(important)
             return result
 
-    def save(self, path: str) -> None:
+    def save(self, path: Path) -> None:
         with open(path, "w") as ofh:
             store = {
                 "activating": NeuronStore._store_to_lists(self._activating),

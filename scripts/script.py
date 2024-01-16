@@ -1,6 +1,8 @@
 import json
 import os
+import pickle
 import sys
+from pathlib import Path
 from typing import List, Tuple
 
 import numpy as np
@@ -45,11 +47,13 @@ def main() -> None:
     # ================ Setup ================
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    repo_root: str = os.path.abspath(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    repo_root = (Path(__file__) / ".." / "..").resolve()
+
+    data_dir = repo_root / "data"
 
     # Save the activation matrix for the model to data/
-    activation_matrix_path = os.path.join(repo_root, f"data/activation_matrix-{model_name}.json")
-    if not os.path.exists(activation_matrix_path):
+    activation_matrix_path = data_dir / f"activation_matrix-{model_name}.json"
+    if not activation_matrix_path.exists():
         raise Exception(
             f"Activation matrix not found for model {model_name}. "
             "Either download it from the repo or scrape it with `scrape.py`."
@@ -58,25 +62,25 @@ def main() -> None:
         activation_matrix = json.load(ifh)
         activation_matrix = np.array(activation_matrix)
 
-    data_dir = os.path.join(repo_root, "data")
-    if not os.path.exists(os.path.join(data_dir, "word_to_casings.json")):
+    word_to_casings_path = data_dir / "word_to_casings.json"
+    if not word_to_casings_path.exists():
         raise Exception("`word_to_casings.json` not found in `data/`.")
 
-    with open(os.path.join(data_dir, "word_to_casings.json"), encoding="utf-8") as ifh:
+    with open(word_to_casings_path, encoding="utf-8") as ifh:
         word_to_casings = json.load(ifh)
     aug_model_name = "distilbert-base-uncased"
 
-    output_dir = os.path.join(repo_root, "output", model_name)
+    output_dir = repo_root / "output" / model_name
     os.makedirs(output_dir, exist_ok=True)
 
-    graph_dir = os.path.join(output_dir, "graphs")
-    neuron_store_path = os.path.join(output_dir, "neuron_store.json")
-    stats_path = os.path.join(output_dir, "stats.json")
+    graph_dir = output_dir / "graphs"
+    neuron_store_path = output_dir / "neuron_store.json"
+    stats_path = output_dir / "stats.json"
     # This ensures that both the base output path and the graph directory exist
-    if not os.path.exists(graph_dir):
+    if not graph_dir.exists():
         os.makedirs(graph_dir)
 
-    neuron_store = NeuronStore.load(neuron_store_path) if os.path.exists(neuron_store_path) else NeuronStore()
+    neuron_store = NeuronStore.load(neuron_store_path) if neuron_store_path.exists() else NeuronStore()
     all_stats = n2g.get_neuron_stats(stats_path)
 
     # ================ Run ================
@@ -108,8 +112,10 @@ def main() -> None:
     neuron_store.save(neuron_store_path)
     with open(stats_path, "w") as ofh:
         json.dump(neuron_stats, ofh, indent=2)
+    with open(output_dir / "stats.pkl", "wb") as file:
+        pickle.dump(neuron_stats, file)
 
-    n2g.get_summary_stats(os.path.join(output_dir, "stats.json"))
+    n2g.get_summary_stats(stats_path)
 
 
 if __name__ == "__main__":

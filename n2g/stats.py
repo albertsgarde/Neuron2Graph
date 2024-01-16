@@ -1,23 +1,23 @@
 import json
-import os
 import pprint
 import random
 import typing
 from collections import defaultdict
+from pathlib import Path
 from typing import Any, Dict, List
 
 import numpy as np
 
 
-def get_neuron_stats(stats_path: str) -> Dict[int, Dict[int, Dict[Any, Any]]]:
-    if os.path.exists(stats_path):
+def get_neuron_stats(stats_path: Path) -> Dict[int, Dict[int, Dict[Any, Any]]]:
+    if stats_path.exists():
         with open(stats_path) as ifh:
             return json.load(ifh)
     else:
         return {}
 
 
-def get_summary_stats(path: str, verbose: bool = True) -> List[Dict[str, Dict[str, float]]]:
+def get_summary_stats(path: Path, verbose: bool = True) -> List[Dict[str, Dict[str, float]]]:
     summary_stats: List[Dict[str, Dict[str, float]]] = []
     summary_stds: List[Dict[str, Dict[str, float]]] = []
 
