@@ -7,7 +7,7 @@ from typing import Dict, List, Set, Tuple
 import numpy as np
 import torch
 from torch.nn import functional
-from transformer_lens.HookedTransformer import HookedTransformer
+from transformer_lens.HookedTransformer import HookedTransformer  # type: ignore[import]
 from transformers import PreTrainedModel, PreTrainedTokenizer  # type: ignore
 
 from .word_tokenizer import WordTokenizer

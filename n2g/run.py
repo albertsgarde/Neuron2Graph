@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from sklearn.model_selection import train_test_split  # type: ignore
 from torch import device
-from transformer_lens.HookedTransformer import HookedTransformer
+from transformer_lens.HookedTransformer import HookedTransformer  # type: ignore[import]
 from transformers import AutoModelForMaskedLM, AutoTokenizer, PreTrainedModel, PreTrainedTokenizer  # type: ignore
 
 from . import scrape, train_and_eval

@@ -5,7 +5,7 @@ from jaxtyping import Float
 from numpy.typing import NDArray
 from sklearn import metrics  # type: ignore
 from torch import Tensor
-from transformer_lens.HookedTransformer import HookedTransformer
+from transformer_lens.HookedTransformer import HookedTransformer  # type: ignore[import]
 
 from .neuron_model import NeuronModel
 

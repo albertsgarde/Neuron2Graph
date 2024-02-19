@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Tuple
 
-from transformer_lens.HookedTransformer import HookedTransformer
+from transformer_lens.HookedTransformer import HookedTransformer  # type: ignore[import]
 
 import n2g
 

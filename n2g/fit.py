@@ -8,7 +8,7 @@ import torch
 from jaxtyping import Float, Int
 from numpy.typing import NDArray
 from torch import Tensor
-from transformer_lens.HookedTransformer import HookedTransformer
+from transformer_lens.HookedTransformer import HookedTransformer  # type: ignore[import]
 
 from . import augmenter, word_tokenizer
 from .augmenter import AugmentationConfig, Augmenter
