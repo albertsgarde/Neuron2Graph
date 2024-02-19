@@ -12,9 +12,9 @@ from n2g.augmenter import WordToCasings
 from n2g.neuron_store import NeuronStore
 
 
-def cmd_arguments() -> Tuple[str, str, List[int], int]:
+def cmd_arguments() -> Tuple[str, List[int], int]:
     """
-    Gets model name, layer ending, layers, and neurons from the command line arguments if available.
+    Gets model name, layers, and neurons from the command line arguments if available.
     Layer ending should be either "mid" for SoLU models or "post" for GeLU models.
     The "mlp.hook_" prefix is added automatically.
     Layers are given either as `start:end` or as a comma separated list of layer indices.
@@ -22,22 +22,29 @@ def cmd_arguments() -> Tuple[str, str, List[int], int]:
     args = sys.argv[1:]
     num_arguments = len(args)
     if num_arguments < 4:
-        raise Exception("Not enough arguments")
+        raise Exception("Not enough arguments. Expected model name, layers, and neurons.")
     model_name = args[0]
-    layer_ending = f"mlp.hook_{args[1]}"
-    layers_arg = args[2]
+    layers_arg = args[1]
     if ":" in layers_arg:
         layer_range = layers_arg.split(":")
         layers = list(range(int(layer_range[0]), int(layer_range[1])))
     else:
         layers = [int(layer_index_str) for layer_index_str in layers_arg.split(",")]
-    neurons_per_layer = int(args[3])
+    neurons_per_layer = int(args[2])
 
-    return model_name, layer_ending, layers, neurons_per_layer
+    return model_name, layers, neurons_per_layer
+
+
+def layer_ending_from_model_name(model_name: str) -> str:
+    if "solu" in model_name:
+        return "mid"
+    else:
+        return "post"
 
 
 def main() -> None:
-    model_name, layer_ending, layer_indices, neurons_per_layer = cmd_arguments()
+    model_name, layer_indices, neurons_per_layer = cmd_arguments()
+    layer_ending = f"mlp.hook_{layer_ending_from_model_name(model_name)}"
 
     print(
         f"Running N2G for model {model_name} layers {layer_indices}. "
