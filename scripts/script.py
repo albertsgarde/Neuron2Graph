@@ -21,7 +21,7 @@ def cmd_arguments() -> Tuple[str, List[int], int]:
     """
     args = sys.argv[1:]
     num_arguments = len(args)
-    if num_arguments < 4:
+    if num_arguments < 3:
         raise Exception("Not enough arguments. Expected model name, layers, and neurons.")
     model_name = args[0]
     layers_arg = args[1]
