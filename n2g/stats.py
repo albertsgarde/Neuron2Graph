@@ -9,7 +9,7 @@ from typing import Any, Dict, List
 import numpy as np
 
 
-def get_neuron_stats(stats_path: Path) -> Dict[int, Dict[int, Dict[str, Any]]]:
+def load_neuron_stats(stats_path: Path) -> Dict[int, Dict[int, Dict[str, Any]]]:
     if stats_path.exists():
         with open(stats_path) as ifh:
             return json.load(ifh)

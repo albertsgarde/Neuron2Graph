@@ -77,7 +77,7 @@ def main() -> None:
         os.makedirs(graph_dir)
 
     neuron_store = NeuronStore.load(neuron_store_path) if neuron_store_path.exists() else NeuronStore()
-    all_stats = n2g.get_neuron_stats(stats_path)
+    all_stats = n2g.load_neuron_stats(stats_path)
 
     # ================ Run ================
     # Run training for the specified layers and neurons
