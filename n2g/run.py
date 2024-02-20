@@ -1,12 +1,19 @@
 import random
 import typing
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from sklearn.model_selection import train_test_split  # type: ignore
 from torch import device
-from transformer_lens.HookedTransformer import HookedTransformer  # type: ignore[import]
-from transformers import AutoModelForMaskedLM, AutoTokenizer, PreTrainedModel, PreTrainedTokenizer  # type: ignore
+from transformer_lens import HookedTransformer  # type: ignore[import]
+from transformers import (  # type: ignore[import]
+    AutoModelForMaskedLM,
+    AutoTokenizer,
+    PreTrainedModel,
+    PreTrainedTokenizer,
+)
+
+from n2g.stats import NeuronStats  # type: ignore
 
 from . import scrape, train_and_eval
 from .augmenter import AugmentationConfig, Augmenter, WordToCasings
@@ -51,9 +58,9 @@ def run_training(
     augmenter: Augmenter,
     model_name: str,
     neuron_store: NeuronStore,
-    all_stats: Dict[int, Dict[int, Dict[str, Any]]],
+    all_stats: Dict[int, Dict[int, NeuronStats]],
     config: TrainConfig,
-) -> Tuple[Dict[int, Dict[int, NeuronModel]], NeuronStore, Dict[int, Dict[int, Dict[str, Any]]]]:
+) -> Tuple[Dict[int, Dict[int, NeuronModel]], NeuronStore, Dict[int, Dict[int, NeuronStats]]]:
     random.seed(config.random_seed)
 
     neuron_models: Dict[int, Dict[int, NeuronModel]] = {}
@@ -98,10 +105,10 @@ def run(
     word_to_casings: WordToCasings,
     aug_model_name: str,
     neuron_store: NeuronStore,
-    all_stats: Dict[int, Dict[int, Dict[str, Any]]],
+    all_stats: Dict[int, Dict[int, NeuronStats]],
     config: TrainConfig,
     device: device,
-) -> Tuple[Dict[int, Dict[int, NeuronModel]], NeuronStore, Dict[int, Dict[int, Dict[str, Any]]]]:
+) -> Tuple[Dict[int, Dict[int, NeuronModel]], NeuronStore, Dict[int, Dict[int, NeuronStats]]]:
     model: HookedTransformer = HookedTransformer.from_pretrained(model_name).to(device)  # type: ignore
 
     aug_model: PreTrainedModel = typing.cast(

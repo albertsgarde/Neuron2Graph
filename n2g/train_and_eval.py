@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Tuple
+from typing import List, Tuple
 
 from transformer_lens.HookedTransformer import HookedTransformer  # type: ignore[import]
 
@@ -9,6 +9,7 @@ from .augmenter import Augmenter
 from .fit import FitConfig
 from .neuron_model import NeuronModel
 from .neuron_store import NeuronStore
+from .stats import NeuronStats
 
 
 def layer_index_to_name(layer_index: int, layer_ending: str) -> str:
@@ -27,7 +28,7 @@ def train_and_eval(
     neuron_store: NeuronStore,
     fire_threshold: float,
     fit_config: FitConfig,
-) -> Tuple[NeuronModel, Dict[str, Any]]:
+) -> Tuple[NeuronModel, NeuronStats]:
     layer = layer_index_to_name(layer_index, layer_ending)
 
     neuron_model = fit.fit_neuron_model(

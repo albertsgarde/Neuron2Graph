@@ -1,6 +1,5 @@
 import json
 import os
-import pickle
 import sys
 from pathlib import Path
 from typing import List, Tuple
@@ -8,6 +7,7 @@ from typing import List, Tuple
 import torch
 
 import n2g
+from n2g import stats
 from n2g.augmenter import WordToCasings
 from n2g.neuron_store import NeuronStore
 
@@ -77,7 +77,9 @@ def main() -> None:
         os.makedirs(graph_dir)
 
     neuron_store = NeuronStore.load(neuron_store_path) if neuron_store_path.exists() else NeuronStore()
-    all_stats = n2g.load_neuron_stats(stats_path)
+    all_stats = stats.load_neuron_stats(stats_path)
+    if all_stats is None:
+        all_stats = {}
 
     # ================ Run ================
     # Run training for the specified layers and neurons
@@ -106,10 +108,7 @@ def main() -> None:
                 f.write(net.source)
 
     neuron_store.save(neuron_store_path)
-    with open(stats_path, "w") as ofh:
-        json.dump(neuron_stats, ofh, indent=2)
-    with open(output_dir / "stats.pkl", "wb") as file:
-        pickle.dump(neuron_stats, file)
+    stats.dump_neuron_stats(stats_path, neuron_stats)
 
     n2g.get_summary_stats(stats_path)
 

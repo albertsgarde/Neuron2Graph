@@ -9,6 +9,8 @@ from torch import Tensor
 from transformer_lens import HookedTransformer  # type: ignore[import]
 from transformer_lens.hook_points import HookPoint  # type: ignore[import]
 
+from n2g.stats import NeuronStats  # type: ignore[import]
+
 from .neuron_model import NeuronModel
 
 
@@ -20,7 +22,7 @@ def evaluate(
     base_max_act: float,
     test_samples: List[str],
     fire_threshold: float,
-) -> Dict[str, Any]:
+) -> NeuronStats:
     test_tokens: Int[Tensor, "num_samples sample_length"] = model.to_tokens(test_samples)
     test_str_tokens: List[List[str]] = [model.tokenizer.batch_decode(sample) for sample in test_tokens]
 
@@ -51,5 +53,4 @@ def evaluate(
     variance: float = np.var(activations)  # type: ignore
     correlation: float = 1.0 - (mse / variance)
 
-    report["correlation"] = correlation
-    return report
+    return NeuronStats.from_metrics_classification_report(report, correlation)
