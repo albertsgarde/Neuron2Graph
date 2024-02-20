@@ -43,27 +43,20 @@ class NeuronStats(BaseModel):
     accuracy: Annotated[float, Field(ge=0, le=1)]
     non_firing: ClassStats
     firing: ClassStats
-    correlation: Annotated[float, Field(ge=-1, le=1)]
 
     @staticmethod
-    def from_metrics_classification_report(report: dict[str, Any], correlation: float) -> "NeuronStats":
+    def from_metrics_classification_report(report: dict[str, Any]) -> "NeuronStats":
         """
-        Create NeuronStats from a classification report from the metrics package and a correlation value.
+        Create NeuronStats from a classification report from the metrics package.
 
         Args:
             report: The classification report from the metrics package.
-            correlation: The correlation value for the neuron.
         """
         return NeuronStats(
             accuracy=report["accuracy"],
             non_firing=ClassStats._from_stats(report["non_firing"]),
             firing=ClassStats._from_stats(report["firing"]),
-            correlation=correlation,
         )
-
-    def __post_init__(self) -> None:
-        assert 0 <= self.accuracy <= 1, f"Accuracy should be between 0 and 1, but got {self.accuracy}"
-        assert -1 <= self.correlation <= 1, f"Correlation should be between -1 and 1, but got {self.correlation}"
 
     def equal(self, other: "NeuronStats") -> bool:
         """
@@ -74,7 +67,6 @@ class NeuronStats(BaseModel):
             self.accuracy == other.accuracy
             and self.non_firing.equal(other.non_firing)
             and self.firing.equal(other.firing)
-            and self.correlation == other.correlation
         )
 
 
