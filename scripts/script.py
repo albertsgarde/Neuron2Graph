@@ -46,7 +46,7 @@ def main() -> None:
 
     print(
         f"Running N2G for model {model_name} layers {layer_indices}. "
-        "Using layer ending {layer_ending} and {neurons_per_layer} neurons per layer."
+        f"Using layer ending {layer_ending} and {neurons_per_layer} neurons per layer."
     )
 
     # ================ Setup ================
