@@ -31,40 +31,40 @@ def get_summary_stats(path: Path, verbose: bool = True) -> List[Dict[str, Dict[s
     precision_case = 0
 
     for _layer, layer_stats in stats.items():
-        eligible_neurons = set([neuron for neuron, neuron_stats in layer_stats.items() if "1" in neuron_stats])
+        eligible_neurons = set([neuron for neuron, neuron_stats in layer_stats.items() if "firing" in neuron_stats])
 
         aggr_stats_dict: Dict[str, Dict[str, List[float]]] = {
-            "Inactivating": defaultdict(list),
-            "Activating": defaultdict(list),
+            "Non-firing": defaultdict(list),
+            "Firing": defaultdict(list),
         }
         for neuron, neuron_stats in layer_stats.items():
             if neuron not in eligible_neurons:
                 inelegible_count += 1
                 continue
 
-            aggr_stats_dict["Inactivating"]["Precision"].append(neuron_stats["0"]["precision"])
-            aggr_stats_dict["Inactivating"]["Recall"].append(neuron_stats["0"]["recall"])
-            aggr_stats_dict["Inactivating"]["F1"].append(neuron_stats["0"]["f1-score"])
+            aggr_stats_dict["Non-firing"]["Precision"].append(neuron_stats["non_firing"]["precision"])
+            aggr_stats_dict["Non-firing"]["Recall"].append(neuron_stats["non_firing"]["recall"])
+            aggr_stats_dict["Non-firing"]["F1"].append(neuron_stats["non_firing"]["f1-score"])
 
             # If we didn't predict anything as activating, treat this as 100% precision rather than 0%
-            if neuron_stats["0"]["recall"] == 1 and neuron_stats["1"]["recall"] == 0:
+            if neuron_stats["non_firing"]["recall"] == 1 and neuron_stats["firing"]["recall"] == 0:
                 precision_case += 1
-                neuron_stats["1"]["precision"] = 1.0
+                neuron_stats["firing"]["precision"] = 1.0
 
-            aggr_stats_dict["Activating"]["Precision"].append(neuron_stats["1"]["precision"])
-            aggr_stats_dict["Activating"]["Recall"].append(neuron_stats["1"]["recall"])
-            aggr_stats_dict["Activating"]["F1"].append(neuron_stats["1"]["f1-score"])
+            aggr_stats_dict["Firing"]["Precision"].append(neuron_stats["firing"]["precision"])
+            aggr_stats_dict["Firing"]["Recall"].append(neuron_stats["firing"]["recall"])
+            aggr_stats_dict["Firing"]["F1"].append(neuron_stats["firing"]["f1-score"])
 
         if verbose:
-            print("Neurons Evaluated:", len(aggr_stats_dict["Inactivating"]["Precision"]))
+            print("Neurons Evaluated:", len(aggr_stats_dict["Non-firing"]["Precision"]))
 
         avg_stats_dict: Dict[str, Dict[str, float]] = {
-            "Inactivating": {},
-            "Activating": {},
+            "Non-firing": {},
+            "Firing": {},
         }
         std_stats_dict: Dict[str, Dict[str, float]] = {
-            "Inactivating": {},
-            "Activating": {},
+            "Non-firing": {},
+            "Firing": {},
         }
         for token_type, inner_stats_dict in aggr_stats_dict.items():
             for stat_type, stat_arr in inner_stats_dict.items():

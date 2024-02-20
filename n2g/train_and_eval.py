@@ -44,18 +44,14 @@ def train_and_eval(
 
     print("Fitted model", flush=True)
 
-    try:
-        stats = n2g.evaluate(
-            model,
-            layer,
-            neuron_index,
-            neuron_model,
-            base_max_activation,
-            test_samples,
-            fire_threshold,
-        )
-    except Exception as e:
-        stats = {}
-        print(f"Stats failed with error: {e}", flush=True)
+    stats = n2g.evaluate(
+        model,
+        layer,
+        neuron_index,
+        neuron_model,
+        base_max_activation,
+        test_samples,
+        fire_threshold,
+    )
 
     return neuron_model, stats

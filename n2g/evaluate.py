@@ -1,11 +1,13 @@
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 
 import numpy as np
-from jaxtyping import Float
+import torch
+from jaxtyping import Bool, Float, Int
 from numpy.typing import NDArray
 from sklearn import metrics  # type: ignore
 from torch import Tensor
-from transformer_lens.HookedTransformer import HookedTransformer  # type: ignore[import]
+from transformer_lens import HookedTransformer  # type: ignore[import]
+from transformer_lens.hook_points import HookPoint  # type: ignore[import]
 
 from .neuron_model import NeuronModel
 
@@ -19,37 +21,32 @@ def evaluate(
     test_samples: List[str],
     fire_threshold: float,
 ) -> Dict[str, Any]:
-    max_test_data: List[Tuple[List[str], Float[Tensor, ""]]] = []
-    for snippet in test_samples:
-        tokens = model.to_tokens(snippet, prepend_bos=True)
-        str_tokens: List[str] = model.to_str_tokens(snippet, prepend_bos=True)  # type: ignore
-        _logits, cache = model.run_with_cache(tokens)  # type: ignore
-        activations: Float[Tensor, ""] = cache[layer][0, :, neuron_index].cpu()  # type: ignore
-        max_test_data.append((str_tokens, activations / base_max_act))
+    test_tokens: Int[Tensor, "num_samples sample_length"] = model.to_tokens(test_samples)
+    test_str_tokens: List[List[str]] = [model.tokenizer.batch_decode(sample) for sample in test_tokens]
 
-    print("Max Activating Evaluation Data", flush=True)
+    activations: Float[NDArray, "num_samples sample_length"] = np.zeros(test_tokens.shape)
+    pred_activations: Float[NDArray, "num_samples sample_length"] = np.full(test_tokens.shape, float("nan"))
 
-    y: List[int] = []
-    y_pred: List[int] = []
-    y_act: NDArray[np.float32] = np.array([])
-    y_pred_act: NDArray[np.float32] = np.array([])
-    for prompt_tokens, activations in max_test_data:
-        pred_activations = neuron_model.forward([prompt_tokens])[0]
+    def hook(activation: Float[Tensor, "num_samples sample_length neurons_per_layer"], hook: HookPoint) -> None:
+        activations[:] = (activation[:, :, neuron_index] / base_max_act).cpu().numpy()
 
-        y_act = np.concatenate((y_act, np.array(activations)))
-        y_pred_act = np.concatenate((y_pred_act, np.array(pred_activations)))
+    with torch.no_grad():
+        model.run_with_hooks(test_tokens, fwd_hooks=[(layer, hook)])
 
-        pred_firings = [int(pred_activation >= fire_threshold) for pred_activation in pred_activations]
-        firings = [int(activation >= fire_threshold) for activation in activations]
-        y_pred.extend(pred_firings)
-        y.extend(firings)
+    for sample_index, sample_str_tokens in enumerate(test_str_tokens):
+        pred_sample_activations = neuron_model.forward([sample_str_tokens])[0]
+        pred_activations[sample_index, :] = np.array(pred_sample_activations)
 
-    print(metrics.classification_report(y, y_pred), flush=True)  # type: ignore
-    report: Dict[str, Any] = metrics.classification_report(y, y_pred, output_dict=True)  # type: ignore
+    firings: Bool[NDArray, "num_samples sample_length"] = activations >= fire_threshold
+    pred_firings: Bool[NDArray, "num_samples sample_length"] = pred_activations >= fire_threshold
 
-    act_diff = y_pred_act - y_act
+    report: Dict[str, Any] = metrics.classification_report(
+        firings.ravel(), pred_firings.ravel(), target_names=["non_firing", "firing"], output_dict=True
+    )  # type: ignore
+
+    act_diff = pred_activations - activations
     mse: float = np.mean(np.power(act_diff, 2))  # type: ignore
-    variance: float = np.var(y_act)  # type: ignore
+    variance: float = np.var(activations)  # type: ignore
     correlation: float = 1.0 - (mse / variance)
 
     report["correlation"] = correlation

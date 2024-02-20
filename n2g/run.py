@@ -1,5 +1,4 @@
 import random
-import traceback
 import typing
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
@@ -64,34 +63,29 @@ def run_training(
         neuron_models[layer_index] = {}
         for neuron_index in neuron_indices:
             print(f"{layer_index=} {neuron_index=}", flush=True)
-            try:
-                samples, base_max_activation = scrape.scrape_neuron(model_name, layer_index, neuron_index)
+            samples, base_max_activation = scrape.scrape_neuron(model_name, layer_index, neuron_index)
 
-                split: Tuple[List[str], List[str]] = train_test_split(  # type: ignore
-                    samples, train_size=config.train_proportion, random_state=config.random_seed
-                )
-                train_samples, test_samples = split
+            split: Tuple[List[str], List[str]] = train_test_split(  # type: ignore
+                samples, train_size=config.train_proportion, random_state=config.random_seed
+            )
+            train_samples, test_samples = split
 
-                neuron_model, stats = train_and_eval.train_and_eval(
-                    model,
-                    layer_index,
-                    neuron_index,
-                    augmenter,
-                    train_samples,
-                    test_samples,
-                    base_max_activation,
-                    layer_ending,
-                    neuron_store,
-                    fire_threshold=config.fire_threshold,
-                    fit_config=config.fit_config,
-                )
+            neuron_model, stats = train_and_eval.train_and_eval(
+                model,
+                layer_index,
+                neuron_index,
+                augmenter,
+                train_samples,
+                test_samples,
+                base_max_activation,
+                layer_ending,
+                neuron_store,
+                fire_threshold=config.fire_threshold,
+                fit_config=config.fit_config,
+            )
 
-                neuron_models[layer_index][neuron_index] = neuron_model
-                all_stats[layer_index][neuron_index] = stats
-
-            except Exception:
-                print(traceback.format_exc(), flush=True)
-                print("Failed", flush=True)
+            neuron_models[layer_index][neuron_index] = neuron_model
+            all_stats[layer_index][neuron_index] = stats
 
     return neuron_models, neuron_store, all_stats
 
