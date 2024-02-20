@@ -30,6 +30,8 @@ def evaluate(
     def hook(activation: Float[Tensor, "num_samples sample_length neurons_per_layer"], hook: HookPoint) -> None:
         activations[:] = (activation[:, :, neuron_index] / base_max_act).cpu().numpy()
 
+    assert not np.isnan(pred_activations).any(), "pred_activations should not contain NaNs"
+
     with torch.no_grad():
         model.run_with_hooks(test_tokens, fwd_hooks=[(layer, hook)])
 
