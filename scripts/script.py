@@ -15,8 +15,6 @@ from n2g.neuron_store import NeuronStore
 def cmd_arguments() -> Tuple[str, List[int], int]:
     """
     Gets model name, layers, and neurons from the command line arguments if available.
-    Layer ending should be either "mid" for SoLU models or "post" for GeLU models.
-    The "mlp.hook_" prefix is added automatically.
     Layers are given either as `start:end` or as a comma separated list of layer indices.
     """
     args = sys.argv[1:]
