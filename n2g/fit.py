@@ -345,10 +345,10 @@ def fit_neuron_model(
     config: FitConfig,
 ) -> NeuronModel:
     all_info: List[List[Tuple[NDArray[Any], List[Tuple[str, float]]]]] = []
-    for i, snippet in enumerate(train_samples):
+    for i, sample in enumerate(train_samples):
         print(f"Processing {i + 1} of {len(train_samples)}", flush=True)
 
-        pruned_results = prune(model, layer, neuron_index, snippet, config=config.prune_config)
+        pruned_results = prune(model, layer, neuron_index, sample, config=config.prune_config)
 
         for pruned_prompt, initial_max_act, truncated_max_act in pruned_results:
             scale_factor = initial_max_act / truncated_max_act

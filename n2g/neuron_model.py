@@ -1,15 +1,18 @@
 import json
 from collections import Counter, defaultdict
-from typing import Callable, Dict, List, NamedTuple, Optional, Set, Tuple
+from typing import Callable, Dict, List, Optional, Set, Tuple
 
 import numpy as np
 from graphviz import Digraph, escape  # type: ignore
 from numpy.typing import NDArray
+from pydantic import BaseModel, ConfigDict, NonNegativeInt
 
 from .neuron_store import NeuronStore
 
 
-class Element(NamedTuple):
+class Element(BaseModel):
+    model_config = ConfigDict(strict=True)
+
     importance: float
     activation: float
     token: str
@@ -21,6 +24,12 @@ class Element(NamedTuple):
 
 
 class NeuronNode:
+    id_: int
+    value: Element
+    depth: int
+
+    children: Dict[str, Tuple["NeuronNode", "NeuronEdge"]]
+
     def __init__(
         self,
         id_: int,
@@ -47,6 +56,10 @@ class NeuronNode:
 
 
 class NeuronEdge:
+    weight: float
+    parent: Optional[NeuronNode]
+    child: Optional[NeuronNode]
+
     def __init__(
         self,
         weight: float,
@@ -68,6 +81,24 @@ class NeuronEdge:
 
 
 class NeuronModel:
+    layer: int
+    neuron: int
+
+    root_token: str
+    ignore_token: str
+    end_token: str
+    special_tokens: Set[str]
+
+    root: Tuple[NeuronNode, NeuronEdge]
+    trie_root: Tuple[NeuronNode, NeuronEdge]
+
+    activation_threshold: float
+    importance_threshold: float
+
+    node_count: NonNegativeInt
+    trie_node_count: NonNegativeInt
+    max_depth: NonNegativeInt
+
     def __init__(
         self,
         layer: int,
@@ -86,7 +117,16 @@ class NeuronModel:
         self.root = (
             NeuronNode(
                 -1,
-                Element(0, 0, self.root_token, False, False, True, False, self.root_token),
+                Element(
+                    importance=0,
+                    activation=0,
+                    token=self.root_token,
+                    important=False,
+                    activator=False,
+                    ignore=True,
+                    is_end=False,
+                    token_value=self.root_token,
+                ),
                 -1,
             ),
             NeuronEdge.create_root(),
@@ -94,7 +134,16 @@ class NeuronModel:
         self.trie_root = (
             NeuronNode(
                 -1,
-                Element(0, 0, self.root_token, False, False, True, False, self.root_token),
+                Element(
+                    importance=0,
+                    activation=0,
+                    token=self.root_token,
+                    important=False,
+                    activator=False,
+                    ignore=True,
+                    is_end=False,
+                    token_value=self.root_token,
+                ),
                 -1,
             ),
             NeuronEdge.create_root(),
@@ -107,6 +156,110 @@ class NeuronModel:
 
     def __call__(self, tokens_arr: List[List[str]]) -> List[List[float]]:
         return self.forward(tokens_arr)
+
+    @staticmethod
+    def _normalise(token: str) -> str:
+        normalised_token = token.lower() if token.istitle() and len(token) > 1 else token
+        normalised_token = (
+            normalised_token.strip()
+            if len(normalised_token) > 1 and any(c.isalpha() for c in normalised_token)
+            else normalised_token
+        )
+        return normalised_token
+
+    def _add(
+        self,
+        start_tuple: Tuple[NeuronNode, NeuronEdge],
+        line: List[Element],
+        graph: bool = True,
+    ) -> None:
+        current_tuple = start_tuple
+        important_count = 0
+
+        start_depth = current_tuple[0].depth
+
+        for i, element in enumerate(line):
+            if element.ignore and graph:
+                continue
+
+            # Normalise token
+            element.token = NeuronModel._normalise(element.token)
+
+            if graph:
+                # Set end value as we don't have end nodes in the graph
+                # The current node is an end if there's only one more node,
+                # as that will be the end node that we don't add
+                is_end = i == len(line) - 2
+                element.is_end = is_end
+
+            important_count += 1
+
+            current_node, _ = current_tuple
+
+            if element.token in current_node.children:
+                current_tuple = current_node.children[element.token]
+                continue
+
+            weight = 0
+
+            depth = start_depth + important_count
+            new_node = NeuronNode(self.node_count, element, depth)
+            new_tuple = (new_node, NeuronEdge(weight, current_node, new_node))
+
+            self.max_depth = depth if depth > self.max_depth else self.max_depth
+
+            current_node.children[element.token] = new_tuple
+
+            current_tuple = new_tuple
+
+            self.node_count += 1
+
+    def _merge_ignores(self) -> None:
+        """
+        Where a set of children contain an ignore token, merge the other nodes into it:
+          - Fully merge if the other node is not an end node
+          - Give the ignore node the other node's children (if it has any) if the other node is an end node
+        """
+        visited: Set[int] = set()  # List to keep track of visited nodes.
+        queue: List[Tuple[NeuronNode, NeuronEdge]] = []  # Initialize a queue
+
+        visited.add(self.trie_root[0].id_)
+        queue.append(self.trie_root)
+
+        while queue:
+            node, _edge = queue.pop(0)
+
+            if self.ignore_token in node.children:
+                ignore_tuple = node.children[self.ignore_token]
+
+                to_remove: List[str] = []
+
+                for child_token, (child_node, _child_edge) in node.children.items():
+                    if child_token == self.ignore_token:
+                        continue
+
+                    child_paths = child_node.paths()
+
+                    for path in child_paths:
+                        # Don't merge if the path is only the first tuple, or the first tuple and an end tuple
+                        if len(path) <= 1 or (len(path) == 2 and path[-1].token == self.end_token):
+                            continue
+                        # Merge the path (not including the first tuple that we're merging)
+                        self._add(ignore_tuple, path[1:], graph=False)
+
+                    # Add the node to a list to be removed later if it isn't an end node
+                    # and doesn't have an end node in its children
+                    if not child_node.value.is_end and self.end_token not in child_node.children:
+                        to_remove.append(child_token)
+
+                for child_token in to_remove:
+                    node.children.pop(child_token)
+
+            for _token, neighbour in node.children.items():
+                new_node, _new_edge = neighbour
+                if new_node.id_ not in visited:
+                    visited.add(new_node.id_)
+                    queue.append(neighbour)
 
     def _initialize_index_sets(
         self,
@@ -128,7 +281,7 @@ class NeuronModel:
 
         return result
 
-    def make_line(
+    def _make_line(
         self,
         importances_matrix: NDArray[np.float32],
         tokens_and_activations: List[Tuple[str, float]],
@@ -166,14 +319,14 @@ class NeuronModel:
                 seq_token_identifier = self.ignore_token if ignore else seq_token
 
                 new_element = Element(
-                    importance,
-                    seq_activation,
-                    seq_token_identifier,
-                    important,
-                    activator,
-                    ignore,
-                    is_end,
-                    seq_token,
+                    importance=importance,
+                    activation=seq_activation,
+                    token=seq_token_identifier,
+                    important=important,
+                    activator=activator,
+                    ignore=ignore,
+                    is_end=is_end,
+                    token_value=seq_token,
                 )
 
                 if not ignore:
@@ -185,66 +338,19 @@ class NeuronModel:
             # Add an end node
             line.append(
                 Element(
-                    0,
-                    activation,
-                    self.end_token,
-                    False,
-                    False,
-                    True,
-                    True,
-                    self.end_token,
+                    importance=0,
+                    activation=activation,
+                    token=self.end_token,
+                    important=False,
+                    activator=False,
+                    ignore=True,
+                    is_end=True,
+                    token_value=self.end_token,
                 )
             )
             all_lines.append(line)
 
         return all_lines
-
-    def add(
-        self,
-        start_tuple: Tuple[NeuronNode, NeuronEdge],
-        line: List[Element],
-        graph: bool = True,
-    ) -> None:
-        current_tuple = start_tuple
-        important_count = 0
-
-        start_depth = current_tuple[0].depth
-
-        for i, element in enumerate(line):
-            if element.ignore and graph:
-                continue
-
-            # Normalise token
-            element = element._replace(token=NeuronModel.normalise(element.token))
-
-            if graph:
-                # Set end value as we don't have end nodes in the graph
-                # The current node is an end if there's only one more node,
-                # as that will be the end node that we don't add
-                is_end = i == len(line) - 2
-                element = element._replace(is_end=is_end)
-
-            important_count += 1
-
-            current_node, _ = current_tuple
-
-            if element.token in current_node.children:
-                current_tuple = current_node.children[element.token]
-                continue
-
-            weight = 0
-
-            depth = start_depth + important_count
-            new_node = NeuronNode(self.node_count, element, depth)
-            new_tuple = (new_node, NeuronEdge(weight, current_node, new_node))
-
-            self.max_depth = depth if depth > self.max_depth else self.max_depth
-
-            current_node.children[element.token] = new_tuple
-
-            current_tuple = new_tuple
-
-            self.node_count += 1
 
     def fit(
         self,
@@ -254,100 +360,22 @@ class NeuronModel:
             (first_importances, first_tokens_and_activations) = example_data[0]
             important_index_sets = self._initialize_index_sets(first_importances, first_tokens_and_activations)
             for importances_matrix, tokens_and_activations in example_data:
-                lines = self.make_line(importances_matrix, tokens_and_activations, important_index_sets)
+                lines = self._make_line(importances_matrix, tokens_and_activations, important_index_sets)
 
                 for line in lines:
-                    self.add(self.root, line, graph=True)
-                    self.add(self.trie_root, line, graph=False)
+                    self._add(self.root, line, graph=True)
+                    self._add(self.trie_root, line, graph=False)
 
-        self.merge_ignores()
+        self._merge_ignores()
 
-    def update_neuron_store(self, neuron_store: NeuronStore) -> None:
-        visited: Set[int] = set()  # List to keep track of visited nodes.
-        queue: List[Tuple[NeuronNode, NeuronEdge]] = []  # Initialize a queue
-
-        visited.add(self.trie_root[0].id_)
-        queue.append(self.trie_root)
-
-        while queue:
-            node, _ = queue.pop(0)
-
-            token = node.value.token
-
-            if token not in self.special_tokens:
-                neuron_store.add_neuron(node.value.activator, token, f"{self.layer}_{self.neuron}")
-
-            for _token, neighbour in node.children.items():
-                new_node, _new_edge = neighbour
-                if new_node.id_ not in visited:
-                    visited.add(new_node.id_)
-                    queue.append(neighbour)
-
-    @staticmethod
-    def normalise(token: str) -> str:
-        normalised_token = token.lower() if token.istitle() and len(token) > 1 else token
-        normalised_token = (
-            normalised_token.strip()
-            if len(normalised_token) > 1 and any(c.isalpha() for c in normalised_token)
-            else normalised_token
-        )
-        return normalised_token
-
-    def merge_ignores(self) -> None:
-        """
-        Where a set of children contain an ignore token, merge the other nodes into it:
-          - Fully merge if the other node is not an end node
-          - Give the ignore node the other node's children (if it has any) if the other node is an end node
-        """
-        visited: Set[int] = set()  # List to keep track of visited nodes.
-        queue: List[Tuple[NeuronNode, NeuronEdge]] = []  # Initialize a queue
-
-        visited.add(self.trie_root[0].id_)
-        queue.append(self.trie_root)
-
-        while queue:
-            node, _edge = queue.pop(0)
-
-            if self.ignore_token in node.children:
-                ignore_tuple = node.children[self.ignore_token]
-
-                to_remove: List[str] = []
-
-                for child_token, (child_node, _child_edge) in node.children.items():
-                    if child_token == self.ignore_token:
-                        continue
-
-                    child_paths = child_node.paths()
-
-                    for path in child_paths:
-                        # Don't merge if the path is only the first tuple, or the first tuple and an end tuple
-                        if len(path) <= 1 or (len(path) == 2 and path[-1].token == self.end_token):
-                            continue
-                        # Merge the path (not including the first tuple that we're merging)
-                        self.add(ignore_tuple, path[1:], graph=False)
-
-                    # Add the node to a list to be removed later if it isn't an end node
-                    # and doesn't have an end node in its children
-                    if not child_node.value.is_end and self.end_token not in child_node.children:
-                        to_remove.append(child_token)
-
-                for child_token in to_remove:
-                    node.children.pop(child_token)
-
-            for _token, neighbour in node.children.items():
-                new_node, _new_edge = neighbour
-                if new_node.id_ not in visited:
-                    visited.add(new_node.id_)
-                    queue.append(neighbour)
-
-    def search(self, tokens: List[str]) -> float:
+    def _search(self, tokens: List[str]) -> float:
         """Evaluate the activation on the first token in tokens"""
         current_tuple = self.trie_root
 
         activations = [0.0]
 
         for i, token in enumerate(reversed(tokens)):
-            token = self.normalise(token)
+            token = self._normalise(token)
 
             current_node, _current_edge = current_tuple
 
@@ -388,7 +416,7 @@ class NeuronModel:
             firings: List[bool] = []
 
             for j in range(len(tokens)):
-                token_activation = self.search(tokens[: len(tokens) - j])
+                token_activation = self._search(tokens[: len(tokens) - j])
                 activations.append(token_activation)
                 firings.append(token_activation > self.activation_threshold)
 
@@ -401,7 +429,7 @@ class NeuronModel:
         return all_activations
 
     @staticmethod
-    def clamp(arr: Tuple[int, int, int]):
+    def _clamp(arr: Tuple[int, int, int]):
         return [max(0, min(x, 255)) for x in arr]
 
     def graphviz(
@@ -480,7 +508,7 @@ class NeuronModel:
                 scaled_importance = int(adjust(node.value.importance, max(0.1, self.importance_threshold - 0.2)) * 255)
                 rgb = (255 - scaled_importance, 255 - scaled_importance, 255)
 
-            hex = "#{0:02x}{1:02x}{2:02x}".format(*self.clamp(rgb))
+            hex = "#{0:02x}{1:02x}{2:02x}".format(*NeuronModel._clamp(rgb))
 
             if graph_node_id not in added_ids and not node.value.ignore:
                 display_token = token.strip(zero_width)
@@ -515,3 +543,24 @@ class NeuronModel:
             net.subgraph(subgraph)  # type: ignore
 
         return net
+
+    def update_neuron_store(self, neuron_store: NeuronStore) -> None:
+        visited: Set[int] = set()  # List to keep track of visited nodes.
+        queue: List[Tuple[NeuronNode, NeuronEdge]] = []  # Initialize a queue
+
+        visited.add(self.trie_root[0].id_)
+        queue.append(self.trie_root)
+
+        while queue:
+            node, _ = queue.pop(0)
+
+            token = node.value.token
+
+            if token not in self.special_tokens:
+                neuron_store.add_neuron(node.value.activator, token, f"{self.layer}_{self.neuron}")
+
+            for _token, neighbour in node.children.items():
+                new_node, _new_edge = neighbour
+                if new_node.id_ not in visited:
+                    visited.add(new_node.id_)
+                    queue.append(neighbour)
