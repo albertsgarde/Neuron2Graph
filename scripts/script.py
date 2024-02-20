@@ -108,8 +108,6 @@ def main() -> None:
     neuron_store.save(neuron_store_path)
     stats.dump_neuron_stats(stats_path, neuron_stats)
 
-    n2g.get_summary_stats(stats_path)
-
 
 if __name__ == "__main__":
     """
