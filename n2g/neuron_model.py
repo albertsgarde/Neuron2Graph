@@ -45,7 +45,7 @@ class NeuronNode:
         return f"ID: {self.id_}, Value: {json.dumps(self.value)}"
 
     def paths(self) -> List[List[Element]]:
-        if not self.children:
+        if not self.children:  # If the node has no children
             return [[self.value]]  # one path: only contains self.value
         paths: List[List[Element]] = []
         for _, child_tuple in self.children.items():
@@ -56,28 +56,25 @@ class NeuronNode:
 
 
 class NeuronEdge:
-    weight: float
     parent: Optional[NeuronNode]
     child: Optional[NeuronNode]
 
     def __init__(
         self,
-        weight: float,
         parent: Optional[NeuronNode],
         child: Optional[NeuronNode],
     ):
-        self.weight = weight
         self.parent = parent
         self.child = child
 
     @staticmethod
     def create_root() -> "NeuronEdge":
-        return NeuronEdge(0, None, None)
+        return NeuronEdge(None, None)
 
     def __repr__(self):
         parent_str = json.dumps(self.parent.id_) if self.parent is not None else "None"
         child_str = json.dumps(self.child.id_) if self.child is not None else "None"
-        return f"Weight: {self.weight:.3f}\nParent: {parent_str}\nChild: {child_str}"
+        return f"Parent: {parent_str}\nChild: {child_str}"
 
 
 class NeuronModel:
@@ -182,6 +179,8 @@ class NeuronModel:
             if element.ignore and graph:
                 continue
 
+            important_count += 1
+
             # Normalise token
             element.token = NeuronModel._normalise(element.token)
 
@@ -192,19 +191,15 @@ class NeuronModel:
                 is_end = i == len(line) - 2
                 element.is_end = is_end
 
-            important_count += 1
-
             current_node, _ = current_tuple
 
             if element.token in current_node.children:
                 current_tuple = current_node.children[element.token]
                 continue
 
-            weight = 0
-
             depth = start_depth + important_count
             new_node = NeuronNode(self.node_count, element, depth)
-            new_tuple = (new_node, NeuronEdge(weight, current_node, new_node))
+            new_tuple = (new_node, NeuronEdge(current_node, new_node))
 
             self.max_depth = depth if depth > self.max_depth else self.max_depth
 
