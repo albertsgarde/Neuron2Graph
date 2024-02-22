@@ -78,8 +78,8 @@ class NeuronEdge:
 
 
 class NeuronModel:
-    layer: int
-    neuron: int
+    layer_index: int
+    neuron_index: int
 
     root_token: str
     ignore_token: str
@@ -103,8 +103,8 @@ class NeuronModel:
         activation_threshold: float,
         importance_threshold: float,
     ):
-        self.layer = layer
-        self.neuron = neuron
+        self.layer_index = layer
+        self.neuron_index = neuron
 
         self.root_token = "**ROOT**"
         self.ignore_token = "**IGNORE**"
@@ -552,7 +552,7 @@ class NeuronModel:
             token = node.value.token
 
             if token not in self.special_tokens:
-                neuron_store.add_neuron(node.value.activator, token, f"{self.layer}_{self.neuron}")
+                neuron_store.add_neuron(node.value.activator, token, f"{self.layer_index}_{self.neuron_index}")
 
             for _token, neighbour in node.children.items():
                 new_node, _new_edge = neighbour
