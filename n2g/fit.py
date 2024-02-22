@@ -367,8 +367,6 @@ def fit_neuron_model(
             all_info.append(info)
 
     neuron_model = NeuronModel(
-        layer_index,
-        neuron_index,
         config.activation_threshold,
         config.importance_threshold,
     )

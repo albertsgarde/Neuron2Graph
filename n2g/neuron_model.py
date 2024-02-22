@@ -78,9 +78,6 @@ class NeuronEdge:
 
 
 class NeuronModel:
-    layer_index: int
-    neuron_index: int
-
     root_token: str
     ignore_token: str
     end_token: str
@@ -98,14 +95,9 @@ class NeuronModel:
 
     def __init__(
         self,
-        layer: int,
-        neuron: int,
         activation_threshold: float,
         importance_threshold: float,
     ):
-        self.layer_index = layer
-        self.neuron_index = neuron
-
         self.root_token = "**ROOT**"
         self.ignore_token = "**IGNORE**"
         self.end_token = "**END**"
@@ -539,7 +531,7 @@ class NeuronModel:
 
         return net
 
-    def update_neuron_store(self, neuron_store: NeuronStore) -> None:
+    def update_neuron_store(self, neuron_store: NeuronStore, layer_name: str, neuron_index: int) -> None:
         visited: Set[int] = set()  # List to keep track of visited nodes.
         queue: List[Tuple[NeuronNode, NeuronEdge]] = []  # Initialize a queue
 
@@ -552,7 +544,7 @@ class NeuronModel:
             token = node.value.token
 
             if token not in self.special_tokens:
-                neuron_store.add_neuron(node.value.activator, token, f"{self.layer_index}_{self.neuron_index}")
+                neuron_store.add_neuron(node.value.activator, token, f"{layer_name}_{neuron_index}")
 
             for _token, neighbour in node.children.items():
                 new_node, _new_edge = neighbour

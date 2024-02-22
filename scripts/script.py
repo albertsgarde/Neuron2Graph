@@ -97,12 +97,6 @@ def main() -> None:
 
     for layer_index, layer_neurons in neuron_models.items():
         for neuron_index, neuron_model in layer_neurons.items():
-            assert (
-                neuron_model.layer_index == layer_index
-            ), "Neuron model layer index doesn't match expected layer index"
-            assert (
-                neuron_model.neuron_index == neuron_index
-            ), "Neuron model neuron index doesn't match expected neuron index"
             net = neuron_model.graphviz()
 
             file_path = os.path.join(graph_dir, f"{layer_index}_{neuron_index}")

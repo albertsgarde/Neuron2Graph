@@ -41,7 +41,7 @@ def train_and_eval(
         base_max_activation,
         config=fit_config,
     )
-    neuron_model.update_neuron_store(neuron_store)
+    neuron_model.update_neuron_store(neuron_store, str(layer_index), neuron_index)
 
     print("Fitted model", flush=True)
 
