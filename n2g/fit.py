@@ -337,7 +337,6 @@ class FitConfig:
 def fit_neuron_model(
     model: HookedTransformer,
     layer: str,
-    layer_index: int,
     neuron_index: int,
     train_samples: List[str],
     augmenter: Augmenter,

@@ -34,7 +34,6 @@ def train_and_eval(
     neuron_model = fit.fit_neuron_model(
         model,
         layer,
-        layer_index,
         neuron_index,
         train_samples,
         augmenter,
