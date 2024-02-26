@@ -1,7 +1,7 @@
 import math
 import typing
 from dataclasses import dataclass
-from typing import Any, List, Optional, Tuple, TypeVar
+from typing import Any, Callable, List, Optional, Tuple, TypeVar
 
 import numpy as np
 import torch
@@ -57,8 +57,7 @@ class PruneConfig:
 
 def prune(
     model: HookedTransformer,
-    layer: str,
-    neuron: int,
+    neuron_activation: Callable[[Int[Tensor, "num_samples sample_length"]], Float[Tensor, "num_samples sample_length"]],
     prompt: str,
     config: PruneConfig,
 ) -> List[Tuple[str, float, float]]:
@@ -73,8 +72,7 @@ def prune(
     if len(tokens[0]) > config.max_length:
         tokens = tokens[0, : config.max_length].unsqueeze(0)
 
-    _logits, cache = model.run_with_cache(tokens)  # type: ignore
-    activations = cache[layer][0, :, neuron].cpu()
+    activations = neuron_activation(tokens)[0, :].cpu()
 
     full_initial_max = torch.max(activations).cpu().item()
 
@@ -136,8 +134,7 @@ def prune(
         for i, (truncated_batch, added_tokens_batch) in enumerate(zip(batched_truncated_prompts, batched_added_tokens)):
             truncated_tokens = model.to_tokens(truncated_batch, prepend_bos=prepend_bos)
 
-            _logits, cache = model.run_with_cache(truncated_tokens)  # type: ignore
-            all_truncated_activations = cache[layer][:, :, neuron].cpu()
+            all_truncated_activations = neuron_activation(truncated_tokens).cpu()
 
             for j, truncated_activations in enumerate(all_truncated_activations):
                 num_added_tokens = added_tokens_batch[j]
@@ -187,8 +184,7 @@ class ImportanceConfig:
 
 def measure_importance(
     model: HookedTransformer,
-    layer: str,
-    neuron: int,
+    neuron_activation: Callable[[Int[Tensor, "num_samples sample_length"]], Float[Tensor, "num_samples sample_length"]],
     prompt: str,
     max_activation: float,
     scale_factor: float,
@@ -211,8 +207,7 @@ def measure_importance(
     for i in range(1, len(masked_prompts)):
         masked_prompts[i, i - 1] = config.masking_token
 
-    _logits, cache = model.run_with_cache(masked_prompts)  # type: ignore
-    all_activations: Float[Tensor, "prompt_length+1 prompt_length"] = cache[layer][:, :, neuron].cpu()
+    all_activations: Float[Tensor, "prompt_length+1 prompt_length"] = neuron_activation(masked_prompts).cpu()
 
     all_masked_activations: Float[Tensor, "prompt_length prompt_length"] = all_activations[1:, :]
     activations: Float[Tensor, " prompt_length"] = all_activations[0, :]
@@ -256,8 +251,7 @@ def measure_importance(
 
 def augment_and_return(
     model: HookedTransformer,
-    layer: str,
-    neuron: int,
+    neuron_activation: Callable[[Int[Tensor, "num_samples sample_length"]], Float[Tensor, "num_samples sample_length"]],
     aug: Augmenter,
     pruned_prompt: str,
     base_max_act: float,
@@ -272,8 +266,7 @@ def augment_and_return(
         tokens_and_activations,
     ) = measure_importance(
         model,
-        layer,
-        neuron,
+        neuron_activation,
         pruned_prompt,
         max_activation=base_max_act,
         scale_factor=scale_factor,
@@ -282,8 +275,7 @@ def augment_and_return(
 
     positive_prompts, negative_prompts = augmenter.augment(
         model,
-        layer,
-        neuron,
+        neuron_activation,
         pruned_prompt,
         aug,
         important_tokens=set(important_tokens),
@@ -297,8 +289,7 @@ def augment_and_return(
             tokens_and_activations,
         ) = measure_importance(
             model,
-            layer,
-            neuron,
+            neuron_activation,
             prompt,
             max_activation=base_max_act,
             scale_factor=scale_factor,
@@ -313,8 +304,7 @@ def augment_and_return(
             tokens_and_activations,
         ) = measure_importance(
             model,
-            layer,
-            neuron,
+            neuron_activation,
             prompt,
             max_activation=base_max_act,
             scale_factor=scale_factor,
@@ -336,8 +326,7 @@ class FitConfig:
 
 def fit_neuron_model(
     model: HookedTransformer,
-    layer: str,
-    neuron_index: int,
+    neuron_activation: Callable[[Int[Tensor, "num_samples sample_length"]], Float[Tensor, "num_samples sample_length"]],
     train_samples: List[str],
     augmenter: Augmenter,
     base_max_act: float,
@@ -347,15 +336,14 @@ def fit_neuron_model(
     for i, sample in enumerate(train_samples):
         print(f"Processing {i + 1} of {len(train_samples)}", flush=True)
 
-        pruned_results = prune(model, layer, neuron_index, sample, config=config.prune_config)
+        pruned_results = prune(model, neuron_activation, sample, config=config.prune_config)
 
         for pruned_prompt, initial_max_act, truncated_max_act in pruned_results:
             scale_factor = initial_max_act / truncated_max_act
 
             info = augment_and_return(
                 model,
-                layer,
-                neuron_index,
+                neuron_activation,
                 augmenter,
                 pruned_prompt,
                 base_max_act=base_max_act,

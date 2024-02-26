@@ -2,10 +2,12 @@ import copy
 import typing
 from dataclasses import dataclass
 from string import punctuation
-from typing import Dict, List, Set, Tuple
+from typing import Callable, Dict, List, Set, Tuple
 
 import numpy as np
 import torch
+from jaxtyping import Float, Int
+from torch import Tensor
 from torch.nn import functional
 from transformer_lens.HookedTransformer import HookedTransformer  # type: ignore[import]
 from transformers import PreTrainedModel, PreTrainedTokenizer  # type: ignore
@@ -153,8 +155,7 @@ class AugmentationConfig:
 
 def augment(
     model: HookedTransformer,
-    layer: str,
-    index: int,
+    neuron_activation: Callable[[Int[Tensor, "num_samples sample_length"]], Float[Tensor, "num_samples sample_length"]],
     prompt: str,
     aug: Augmenter,
     important_tokens: Set[str],
@@ -171,8 +172,7 @@ def augment(
     if len(tokens[0]) > config.max_length:
         tokens = tokens[0, : config.max_length].unsqueeze(0)
 
-    _logits, cache = model.run_with_cache(tokens)  # type: ignore
-    activations = cache[layer][0, :, index]
+    activations = neuron_activation(tokens)[0, :]
 
     initial_max: float = torch.max(activations).cpu().item()
     initial_argmax = typing.cast(int, torch.argmax(activations).cpu().item())
@@ -195,8 +195,7 @@ def augment(
 
     aug_tokens = model.to_tokens(aug_prompts, prepend_bos=prepend_bos)
 
-    _aug_logits, aug_cache = model.run_with_cache(aug_tokens)  # type: ignore
-    all_aug_activations = aug_cache[layer][:, :, index]
+    all_aug_activations = neuron_activation(aug_tokens)
 
     for aug_prompt, char_position, aug_activations in zip(aug_prompts, aug_positions, all_aug_activations):
         aug_max: float = torch.max(aug_activations).cpu().item()

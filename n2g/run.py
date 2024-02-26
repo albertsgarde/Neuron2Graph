@@ -1,11 +1,14 @@
 import random
 import typing
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
+import torch
+from jaxtyping import Float, Int
 from sklearn.model_selection import train_test_split  # type: ignore
-from torch import device
+from torch import Tensor, device
 from transformer_lens import HookedTransformer  # type: ignore[import]
+from transformer_lens.hook_points import HookPoint  # type: ignore[import]
 from transformers import (  # type: ignore[import]
     AutoModelForMaskedLM,
     AutoTokenizer,
@@ -50,6 +53,28 @@ class TrainConfig:
         self.random_seed = random_seed
 
 
+def layer_index_to_name(layer_index: int, layer_ending: str) -> str:
+    return f"blocks.{layer_index}.{layer_ending}"
+
+
+def neuron_activation(
+    model: HookedTransformer, layer_id: str, neuron_index: int
+) -> Callable[[Int[Tensor, "num_samples sample_length"]], Float[Tensor, "num_samples sample_length"]]:
+    def result(samples: Int[Tensor, "num_samples sample_length"]) -> Float[Tensor, "num_samples sample_length"]:
+        activations: Float[Tensor, "num_samples sample_length"] = torch.full(samples.shape, float("nan"))
+
+        def hook(activation: Float[Tensor, "num_samples sample_length neurons_per_layer"], hook: HookPoint) -> None:
+            activations[:] = activation[:, :, neuron_index]
+
+        with torch.no_grad():
+            model.run_with_hooks(samples, fwd_hooks=[(layer_id, hook)])
+            assert not torch.isnan(activations).any(), "Activations should not contain NaNs"
+
+        return activations
+
+    return result
+
+
 def run_training(
     model: HookedTransformer,
     layer_indices: List[int],
@@ -77,15 +102,17 @@ def run_training(
             )
             train_samples, test_samples = split
 
+            layer_id = layer_index_to_name(layer_index, layer_ending)
+
             neuron_model, stats = train_and_eval.train_and_eval(
                 model,
+                neuron_activation(model, layer_id, neuron_index),
                 layer_index,
                 neuron_index,
                 augmenter,
                 train_samples,
                 test_samples,
                 base_max_activation,
-                layer_ending,
                 neuron_store,
                 fire_threshold=config.fire_threshold,
                 fit_config=config.fit_config,

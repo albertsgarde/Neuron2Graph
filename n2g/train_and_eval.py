@@ -1,40 +1,35 @@
-from typing import List, Tuple
+from typing import Callable, List, Tuple
 
-from transformer_lens.HookedTransformer import HookedTransformer  # type: ignore[import]
+from jaxtyping import Float, Int
+from torch import Tensor
+from transformer_lens import HookedTransformer  # type: ignore[import]
 
 import n2g
+from n2g.stats import NeuronStats  # type: ignore
 
 from . import fit
 from .augmenter import Augmenter
 from .fit import FitConfig
 from .neuron_model import NeuronModel
 from .neuron_store import NeuronStore
-from .stats import NeuronStats
-
-
-def layer_index_to_name(layer_index: int, layer_ending: str) -> str:
-    return f"blocks.{layer_index}.{layer_ending}"
 
 
 def train_and_eval(
     model: HookedTransformer,
+    neuron_activation: Callable[[Int[Tensor, "num_samples sample_length"]], Float[Tensor, "num_samples sample_length"]],
     layer_index: int,
     neuron_index: int,
     augmenter: Augmenter,
     train_samples: List[str],
     test_samples: List[str],
     base_max_activation: float,
-    layer_ending: str,
     neuron_store: NeuronStore,
     fire_threshold: float,
     fit_config: FitConfig,
 ) -> Tuple[NeuronModel, NeuronStats]:
-    layer = layer_index_to_name(layer_index, layer_ending)
-
     neuron_model = fit.fit_neuron_model(
         model,
-        layer,
-        neuron_index,
+        neuron_activation,
         train_samples,
         augmenter,
         base_max_activation,
@@ -46,7 +41,7 @@ def train_and_eval(
 
     stats = n2g.evaluate(
         model,
-        layer,
+        neuron_activation,
         neuron_index,
         neuron_model,
         base_max_activation,
