@@ -78,7 +78,6 @@ def prune(
 
     (
         sentences,
-        _sentence_to_token_indices,
         token_to_sentence_indices,
     ) = word_tokenizer.sentence_tokenizer(str_tokens)
 

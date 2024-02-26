@@ -1,5 +1,4 @@
 import re
-from collections import defaultdict
 from typing import Dict, List, Set, Tuple
 
 
@@ -38,19 +37,17 @@ splitter = re.compile("[\\.!\\n]")  # ignore: type
 
 def sentence_tokenizer(
     str_tokens: List[str],
-) -> Tuple[List[List[str]], Dict[int, List[int]], Dict[int, int]]:
+) -> Tuple[List[List[str]], Dict[int, int]]:
     """Split tokenized text into sentences"""
     sentences: List[List[str]] = []
     sentence: List[str] = []
-    sentence_to_token_indices: Dict[int, List[int]] = defaultdict(list)
     token_to_sentence_indices: Dict[int, int] = {}
 
     for i, str_token in enumerate(str_tokens):
         sentence.append(str_token)
-        sentence_to_token_indices[len(sentences)].append(i)
         token_to_sentence_indices[i] = len(sentences)
         if splitter.search(str_token) is not None or i + 1 == len(str_tokens):
             sentences.append(sentence)
             sentence = []
 
-    return sentences, sentence_to_token_indices, token_to_sentence_indices
+    return sentences, token_to_sentence_indices
