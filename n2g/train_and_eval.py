@@ -42,7 +42,6 @@ def train_and_eval(
     stats = n2g.evaluate(
         model,
         neuron_activation,
-        neuron_index,
         neuron_model,
         base_max_activation,
         test_samples,

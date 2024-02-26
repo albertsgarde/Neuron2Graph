@@ -15,7 +15,6 @@ from .neuron_model import NeuronModel
 def evaluate(
     model: HookedTransformer,
     neuron_activation: Callable[[Int[Tensor, "num_samples sample_length"]], Float[Tensor, "num_samples sample_length"]],
-    neuron_index: int,
     neuron_model: NeuronModel,
     base_max_act: float,
     test_samples: List[str],
