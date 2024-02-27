@@ -111,16 +111,15 @@ def run_training(
             neuron_model, stats = train_and_eval.train_and_eval(
                 neuron_activation(model, layer_id, neuron_index),
                 tokenizer,
-                layer_index,
-                neuron_index,
                 augmenter,
                 train_samples,
                 test_samples,
                 base_max_activation,
-                neuron_store,
                 fire_threshold=config.fire_threshold,
                 fit_config=config.fit_config,
             )
+
+            neuron_model.update_neuron_store(neuron_store, str(layer_index), neuron_index)
 
             neuron_models[layer_index][neuron_index] = neuron_model
             all_stats[layer_index][neuron_index] = stats
