@@ -12,7 +12,9 @@ from .tokenizer import Tokenizer
 
 
 def evaluate(
-    neuron_activation: Callable[[Int[Tensor, "num_samples sample_length"]], Float[Tensor, "num_samples sample_length"]],
+    feature_activation: Callable[
+        [Int[Tensor, "num_samples sample_length"]], Float[Tensor, "num_samples sample_length"]
+    ],
     tokenizer: Tokenizer,
     neuron_model: NeuronModel,
     base_max_act: float,
@@ -26,7 +28,7 @@ def evaluate(
 
     pred_activations: Float[NDArray, "num_samples sample_length"] = np.full(test_tokens.shape, float("nan"))
 
-    activations = (neuron_activation(test_tokens) / base_max_act).cpu().numpy()
+    activations = (feature_activation(test_tokens) / base_max_act).cpu().numpy()
 
     assert not np.isnan(activations).any(), "activations should not contain NaNs"
     assert not np.isinf(activations).any(), "activations should not contain Infs"

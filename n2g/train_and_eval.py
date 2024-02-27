@@ -14,7 +14,9 @@ from .tokenizer import Tokenizer
 
 
 def train_and_eval(
-    neuron_activation: Callable[[Int[Tensor, "num_samples sample_length"]], Float[Tensor, "num_samples sample_length"]],
+    feature_activation: Callable[
+        [Int[Tensor, "num_samples sample_length"]], Float[Tensor, "num_samples sample_length"]
+    ],
     tokenizer: Tokenizer,
     augmenter: Augmenter,
     train_samples: List[str],
@@ -24,7 +26,7 @@ def train_and_eval(
     fit_config: FitConfig,
 ) -> Tuple[NeuronModel, NeuronStats]:
     neuron_model = fit.fit_neuron_model(
-        neuron_activation,
+        feature_activation,
         tokenizer,
         train_samples,
         augmenter,
@@ -35,7 +37,7 @@ def train_and_eval(
     print("Fitted model", flush=True)
 
     stats = n2g.evaluate(
-        neuron_activation,
+        feature_activation,
         tokenizer,
         neuron_model,
         base_max_activation,

@@ -154,7 +154,9 @@ class AugmentationConfig:
 
 
 def augment(
-    neuron_activation: Callable[[Int[Tensor, "num_samples sample_length"]], Float[Tensor, "num_samples sample_length"]],
+    feature_activation: Callable[
+        [Int[Tensor, "num_samples sample_length"]], Float[Tensor, "num_samples sample_length"]
+    ],
     tokenizer: Tokenizer,
     prompt: str,
     aug: Augmenter,
@@ -169,7 +171,7 @@ def augment(
     if len(tokens) > config.max_length:
         tokens = tokens[: config.max_length]
 
-    activations = neuron_activation(tokens)[:]
+    activations = feature_activation(tokens)[:]
 
     initial_max: float = torch.max(activations).cpu().item()
     initial_argmax = typing.cast(int, torch.argmax(activations).cpu().item())
@@ -192,7 +194,7 @@ def augment(
 
     aug_tokens, aug_str_tokens = tokenizer.batch_tokenize_with_str(aug_prompts, prepend_bos=prepend_bos)
 
-    all_aug_activations = neuron_activation(aug_tokens)
+    all_aug_activations = feature_activation(aug_tokens)
 
     for aug_prompt, aug_prompt_str_tokens, char_position, aug_activations in zip(
         aug_prompts, aug_str_tokens, aug_positions, all_aug_activations

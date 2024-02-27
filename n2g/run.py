@@ -58,7 +58,7 @@ def layer_index_to_name(layer_index: int, layer_ending: str) -> str:
     return f"blocks.{layer_index}.{layer_ending}"
 
 
-def neuron_activation(
+def feature_activation(
     model: HookedTransformer, layer_id: str, neuron_index: int
 ) -> Callable[[Int[Tensor, "num_samples sample_length"]], Float[Tensor, "num_samples sample_length"]]:
     def result(samples: Int[Tensor, "num_samples sample_length"]) -> Float[Tensor, "num_samples sample_length"]:
@@ -109,7 +109,7 @@ def run_training(
             layer_id = layer_index_to_name(layer_index, layer_ending)
 
             neuron_model, stats = train_and_eval.train_and_eval(
-                neuron_activation(model, layer_id, neuron_index),
+                feature_activation(model, layer_id, neuron_index),
                 tokenizer,
                 augmenter,
                 train_samples,
