@@ -2,21 +2,21 @@ from typing import Callable, List, Tuple
 
 from jaxtyping import Float, Int
 from torch import Tensor
-from transformer_lens import HookedTransformer  # type: ignore[import]
 
 import n2g
-from n2g.stats import NeuronStats  # type: ignore
 
 from . import fit
 from .augmenter import Augmenter
 from .fit import FitConfig
 from .neuron_model import NeuronModel
 from .neuron_store import NeuronStore
+from .stats import NeuronStats
+from .tokenizer import Tokenizer
 
 
 def train_and_eval(
-    model: HookedTransformer,
     neuron_activation: Callable[[Int[Tensor, "num_samples sample_length"]], Float[Tensor, "num_samples sample_length"]],
+    tokenizer: Tokenizer,
     layer_index: int,
     neuron_index: int,
     augmenter: Augmenter,
@@ -28,8 +28,8 @@ def train_and_eval(
     fit_config: FitConfig,
 ) -> Tuple[NeuronModel, NeuronStats]:
     neuron_model = fit.fit_neuron_model(
-        model,
         neuron_activation,
+        tokenizer,
         train_samples,
         augmenter,
         base_max_activation,
@@ -40,8 +40,8 @@ def train_and_eval(
     print("Fitted model", flush=True)
 
     stats = n2g.evaluate(
-        model,
         neuron_activation,
+        tokenizer,
         neuron_model,
         base_max_activation,
         test_samples,

@@ -3,26 +3,26 @@ from typing import Any, Callable, Dict, List
 import numpy as np
 from jaxtyping import Bool, Float, Int
 from numpy.typing import NDArray
-from sklearn import metrics  # type: ignore
+from sklearn import metrics  # type: ignore[import]
 from torch import Tensor
-from transformer_lens import HookedTransformer  # type: ignore[import]
-
-from n2g.stats import NeuronStats  # type: ignore[import]
 
 from .neuron_model import NeuronModel
+from .stats import NeuronStats
+from .tokenizer import Tokenizer
 
 
 def evaluate(
-    model: HookedTransformer,
     neuron_activation: Callable[[Int[Tensor, "num_samples sample_length"]], Float[Tensor, "num_samples sample_length"]],
+    tokenizer: Tokenizer,
     neuron_model: NeuronModel,
     base_max_act: float,
     test_samples: List[str],
     fire_threshold: float,
 ) -> NeuronStats:
     # Prepending BOS is unnecessary since they are already prepended.
-    test_tokens: Int[Tensor, "num_samples sample_length"] = model.to_tokens(test_samples, prepend_bos=False)
-    test_str_tokens: List[List[str]] = [model.tokenizer.batch_decode(sample) for sample in test_tokens]
+    test_tokens: Int[Tensor, "num_samples sample_length"]
+    test_str_tokens: list[list[str]]
+    test_tokens, test_str_tokens = tokenizer.batch_tokenize_with_str(test_samples, prepend_bos=False)
 
     pred_activations: Float[NDArray, "num_samples sample_length"] = np.full(test_tokens.shape, float("nan"))
 

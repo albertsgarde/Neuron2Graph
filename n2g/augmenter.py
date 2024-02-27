@@ -9,9 +9,9 @@ import torch
 from jaxtyping import Float, Int
 from torch import Tensor
 from torch.nn import functional
-from transformer_lens.HookedTransformer import HookedTransformer  # type: ignore[import]
-from transformers import PreTrainedModel, PreTrainedTokenizer  # type: ignore
+from transformers import PreTrainedModel, PreTrainedTokenizer  # type: ignore[import]
 
+from .tokenizer import Tokenizer
 from .word_tokenizer import WordTokenizer
 
 WordToCasings = Dict[str, List[Tuple[str, int]]]
@@ -154,8 +154,8 @@ class AugmentationConfig:
 
 
 def augment(
-    model: HookedTransformer,
     neuron_activation: Callable[[Int[Tensor, "num_samples sample_length"]], Float[Tensor, "num_samples sample_length"]],
+    tokenizer: Tokenizer,
     prompt: str,
     aug: Augmenter,
     important_tokens: Set[str],
@@ -163,16 +163,13 @@ def augment(
 ) -> Tuple[List[str], List[str]]:
     """Generate variations of a prompt using an augmenter"""
     prepend_bos = True
-    tokens = model.to_tokens(prompt, prepend_bos=prepend_bos)
-    str_tokens = typing.cast(
-        List[str],
-        model.to_str_tokens(prompt, prepend_bos=prepend_bos),  # type: ignore
-    )
 
-    if len(tokens[0]) > config.max_length:
-        tokens = tokens[0, : config.max_length].unsqueeze(0)
+    tokens, str_tokens = tokenizer.tokenize_with_str(prompt, prepend_bos=prepend_bos)
 
-    activations = neuron_activation(tokens)[0, :]
+    if len(tokens) > config.max_length:
+        tokens = tokens[: config.max_length]
+
+    activations = neuron_activation(tokens)[:]
 
     initial_max: float = torch.max(activations).cpu().item()
     initial_argmax = typing.cast(int, torch.argmax(activations).cpu().item())
@@ -193,21 +190,20 @@ def augment(
     if not aug_prompts:
         return positive_prompts, negative_prompts
 
-    aug_tokens = model.to_tokens(aug_prompts, prepend_bos=prepend_bos)
+    aug_tokens, aug_str_tokens = tokenizer.batch_tokenize_with_str(aug_prompts, prepend_bos=prepend_bos)
 
     all_aug_activations = neuron_activation(aug_tokens)
 
-    for aug_prompt, char_position, aug_activations in zip(aug_prompts, aug_positions, all_aug_activations):
+    for aug_prompt, aug_prompt_str_tokens, char_position, aug_activations in zip(
+        aug_prompts, aug_str_tokens, aug_positions, all_aug_activations
+    ):
         aug_max: float = torch.max(aug_activations).cpu().item()
         aug_argmax = typing.cast(int, torch.argmax(aug_activations).cpu().item())
 
         # TODO implement this properly - when we mask multiple tokens,
         # if they cross the max_char_position this will not necessarily be correct
         if char_position < max_char_position:
-            new_str_tokens: List[str] = model.to_str_tokens(  # type: ignore
-                aug_prompt, prepend_bos=prepend_bos
-            )
-            aug_argmax += len(new_str_tokens) - len(str_tokens)
+            aug_argmax += len(aug_prompt_str_tokens) - len(str_tokens)
 
         proportion_drop: float = (aug_max - initial_max) / initial_max
 

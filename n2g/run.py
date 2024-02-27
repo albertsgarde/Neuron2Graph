@@ -23,6 +23,7 @@ from .augmenter import AugmentationConfig, Augmenter, WordToCasings
 from .fit import FitConfig, ImportanceConfig, PruneConfig
 from .neuron_model import NeuronModel
 from .neuron_store import NeuronStore
+from .tokenizer import Tokenizer
 from .word_tokenizer import WordTokenizer
 
 
@@ -90,6 +91,8 @@ def run_training(
 
     neuron_models: Dict[int, Dict[int, NeuronModel]] = {}
 
+    tokenizer = Tokenizer(model)
+
     for layer_index in layer_indices:
         all_stats[layer_index] = {}
         neuron_models[layer_index] = {}
@@ -97,16 +100,17 @@ def run_training(
             print(f"{layer_index=} {neuron_index=}", flush=True)
             samples, base_max_activation = scrape.scrape_neuron(model_name, layer_index, neuron_index)
 
-            split: Tuple[List[str], List[str]] = train_test_split(  # type: ignore
+            train_samples: list[str]
+            test_samples: list[str]
+            train_samples, test_samples = train_test_split(  # type: ignore
                 samples, train_size=config.train_proportion, random_state=config.random_seed
             )
-            train_samples, test_samples = split
 
             layer_id = layer_index_to_name(layer_index, layer_ending)
 
             neuron_model, stats = train_and_eval.train_and_eval(
-                model,
                 neuron_activation(model, layer_id, neuron_index),
+                tokenizer,
                 layer_index,
                 neuron_index,
                 augmenter,
