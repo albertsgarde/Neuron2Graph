@@ -76,6 +76,44 @@ def feature_activation(
     return result
 
 
+def run_layer(
+    num_features: int,
+    feature_activation: Callable[
+        [int], Callable[[Int[Tensor, "num_samples sample_length"]], Float[Tensor, "num_samples sample_length"]]
+    ],
+    feature_samples: Callable[[int], Tuple[list[str], float]],
+    tokenizer: Tokenizer,
+    augmenter: Augmenter,
+    train_config: TrainConfig,
+) -> Tuple[list[NeuronModel], list[NeuronStats]]:
+    feature_models: list[NeuronModel] = []
+    feature_stats: list[NeuronStats] = []
+
+    for feature_index in range(num_features):
+        print(f"{feature_index=}", flush=True)
+        train_samples, base_max_activation = feature_samples(feature_index)
+
+        train_samples, test_samples = train_test_split(  # type: ignore
+            train_samples, train_size=train_config.train_proportion, random_state=train_config.random_seed
+        )
+
+        neuron_model, stats = train_and_eval.train_and_eval(
+            feature_activation(feature_index),
+            tokenizer,
+            augmenter,
+            train_samples,
+            test_samples,
+            base_max_activation,
+            fire_threshold=train_config.fire_threshold,
+            fit_config=train_config.fit_config,
+        )
+
+        feature_models.append(neuron_model)
+        feature_stats.append(stats)
+
+    return feature_models, feature_stats
+
+
 def run_training(
     model: HookedTransformer,
     layer_indices: List[int],
