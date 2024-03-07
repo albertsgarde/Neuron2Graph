@@ -3,9 +3,9 @@ name = "n2g"
 version = "0.1.0"
 description = "An implementation of the neuron2graph mechanistic interpretability algorithm which finds graph representations of MLP neuron behaviour. Article: https://arxiv.org/abs/2305.19911"
 readme = "README.md"
-requires-python ="~=3.9"
-license = {file = "LICENSE"}
-urls = {repository = "https://github.com/apartresearch/Neuron2Graph" }
+requires-python = "~=3.9"
+license = { file = "LICENSE" }
+urls = { repository = "https://github.com/apartresearch/Neuron2Graph" }
 dependencies = []
 
 [build-system]
