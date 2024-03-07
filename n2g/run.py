@@ -76,6 +76,24 @@ def feature_activation(
     return result
 
 
+def default_augmenter(word_to_casings: WordToCasings, device: device) -> Augmenter:
+    aug_model_name = "distilbert-base-uncased"
+    aug_model: PreTrainedModel = typing.cast(
+        PreTrainedModel,
+        AutoModelForMaskedLM.from_pretrained(aug_model_name).to(  # type: ignore
+            device
+        ),
+    )
+    aug_tokenizer: PreTrainedTokenizer = typing.cast(
+        PreTrainedTokenizer,
+        AutoTokenizer.from_pretrained(aug_model_name),  # type: ignore
+    )
+
+    stick_tokens = {"'"}
+    word_tokenizer = WordTokenizer(set(), stick_tokens)
+    return Augmenter(aug_model, aug_tokenizer, word_tokenizer, word_to_casings, device)
+
+
 def run_layer(
     num_features: int,
     feature_activation: Callable[
@@ -83,11 +101,14 @@ def run_layer(
     ],
     feature_samples: Callable[[int], Tuple[list[str], float]],
     tokenizer: Tokenizer,
-    augmenter: Augmenter,
+    word_to_casings: WordToCasings,
+    device: device,
     train_config: TrainConfig,
 ) -> Tuple[list[NeuronModel], list[NeuronStats]]:
     feature_models: list[NeuronModel] = []
     feature_stats: list[NeuronStats] = []
+
+    augmenter = default_augmenter(word_to_casings, device)
 
     for feature_index in range(num_features):
         print(f"{feature_index=}", flush=True)
