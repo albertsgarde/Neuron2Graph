@@ -69,12 +69,15 @@ def prune(
 
     prepend_bos = True
 
+    tokens: Int[Tensor, " sample_length"]
     tokens, str_tokens = tokenizer.tokenize_with_str(prompt, prepend_bos=prepend_bos)
 
-    if len(tokens) > config.max_length:
-        tokens = tokens[: config.max_length].unsqueeze(0)
+    # If we instead took pre-tokenized input, we would not need this check.
+    if tokens.shape[-1] > config.max_length:
+        tokens = tokens[: config.max_length]
 
-    activations = feature_activation(tokens)[:].cpu()
+    activations: Float[Tensor, " sample_length"] = feature_activation(tokens)[:].cpu()
+    assert activations.shape == tokens.shape
 
     full_initial_max = torch.max(activations).cpu().item()
 
@@ -93,6 +96,7 @@ def prune(
     initial_maxes: List[float] = []
     truncated_maxes: List[float] = []
 
+    # For each strong activation, find the shortest prompt that preserves the activation
     for initial_argmax_tensor, initial_max_tensor in zip(strong_indices, strong_activations):
         initial_argmax: int = initial_argmax_tensor.item()  # type: ignore
         initial_max: float = initial_max_tensor.item()
@@ -110,7 +114,9 @@ def prune(
         added_tokens: List[int] = []
 
         count = 0
-        full_prior = prior_context[: max(0, initial_argmax - config.window + 1)]
+        full_prior = prior_context[
+            : max(0, initial_argmax - config.window + 1)
+        ]  # This `window` thing seems insane. Maybe remove it?
 
         for i in reversed(range(len(full_prior))):
             count += 1
