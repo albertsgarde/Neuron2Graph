@@ -3,9 +3,7 @@ from typing import Callable, List, Tuple
 from jaxtyping import Float, Int
 from torch import Tensor
 
-import n2g
-
-from . import fit
+from . import evaluate, fit
 from .augmenter import Augmenter
 from .fit import FitConfig
 from .neuron_model import NeuronModel
@@ -36,7 +34,7 @@ def train_and_eval(
 
     print("Fitted model", flush=True)
 
-    stats = n2g.evaluate(
+    stats = evaluate.evaluate(
         feature_activation,
         tokenizer,
         neuron_model,
