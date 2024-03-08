@@ -28,11 +28,13 @@ def evaluate(
 
     pred_activations: Float[NDArray, "num_samples sample_length"] = np.full(test_tokens.shape, float("nan"))
 
+    # Get real activations
     activations = (feature_activation(test_tokens) / base_max_act).cpu().numpy()
 
     assert not np.isnan(activations).any(), "activations should not contain NaNs"
     assert not np.isinf(activations).any(), "activations should not contain Infs"
 
+    # Get predicted activations
     for sample_index, sample_str_tokens in enumerate(test_str_tokens):
         pred_sample_activations = neuron_model.forward([sample_str_tokens])[0]
         pred_activations[sample_index, :] = np.array(pred_sample_activations)
