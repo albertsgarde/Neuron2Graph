@@ -1,6 +1,6 @@
 from .neuron_model import NeuronModel
-from .run import TrainConfig, run, run_layer
+from .run import TrainConfig, feature_activation, run, run_layer
 from .stats import NeuronStats
 from .tokenizer import Tokenizer
 
-__all__ = ["TrainConfig", "run", "run_layer", "Tokenizer", "NeuronModel", "NeuronStats"]
+__all__ = ["TrainConfig", "run", "run_layer", "Tokenizer", "NeuronModel", "NeuronStats", "feature_activation"]
