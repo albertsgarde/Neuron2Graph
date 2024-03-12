@@ -210,8 +210,6 @@ def measure_importance(
     if len(tokens[0]) > config.max_length:
         tokens = tokens[0, : config.max_length].unsqueeze(0)
 
-    importances_matrix: list[NDArray[np.float32]] = []
-
     masked_prompts: Int[Tensor, "prompt_length+1 prompt_length"] = tokens.repeat(len(tokens[0]) + 1, 1)
 
     for i in range(1, len(masked_prompts)):
@@ -220,37 +218,31 @@ def measure_importance(
     all_activations: Float[Tensor, "prompt_length+1 prompt_length"] = feature_activation(masked_prompts).cpu()
 
     all_masked_activations: Float[Tensor, "prompt_length prompt_length"] = all_activations[1:, :]
-    activations: Float[Tensor, " prompt_length"] = all_activations[0, :]
+    unmasked_activations: Float[Tensor, " prompt_length"] = all_activations[0, :]
 
-    initial_argmax = typing.cast(int, torch.argmax(activations).item())
+    initial_argmax = typing.cast(int, torch.argmax(unmasked_activations).item())
 
-    initial_max: float = typing.cast(float, activations[initial_argmax].item())
+    initial_max: float = typing.cast(float, unmasked_activations[initial_argmax].item())
 
     tokens_and_activations: List[Tuple[str, float]] = [
         (str_token, round(activation.item() * scale_factor / max_activation, 3))
-        for str_token, activation in zip(str_tokens, activations)
+        for str_token, activation in zip(str_tokens, unmasked_activations)
     ]
     important_tokens: List[str] = []
     tokens_and_importances: List[Tuple[str, float]] = [(str_token, 0) for str_token in str_tokens]
 
-    for i, masked_activations in enumerate(all_masked_activations):
-        # Get importance of the given token for all tokens
-        importances_row: List[float] = []
-        for j, activation in enumerate(masked_activations):
-            activation = activation.item()
-            normalised_activation: float = 1 - (activation / activations[j].item())
-            importances_row.append(normalised_activation)
+    importances_matrix: Float[Tensor, "prompt_length prompt_length"] = 1 - all_masked_activations / unmasked_activations
 
-        importances_matrix.append(np.array(importances_row))
-
-        masked_max = masked_activations[initial_argmax].item()
-        normalised_activation = 1 - (masked_max / initial_max)
-
-        str_token, _ = tokens_and_importances[i]
-        tokens_and_importances[i] = str_token, normalised_activation
-        if normalised_activation >= config.threshold and str_token != "<|endoftext|>":
-            important_tokens.append(str_token)
-
+    masked_maxes: Int[Tensor, " prompt_length"] = all_masked_activations[:, initial_argmax]
+    normalized_activations = 1 - (masked_maxes / initial_max)
+    tokens_and_importances = [
+        (str_token, importance.item()) for str_token, importance in zip(str_tokens, normalized_activations, strict=True)
+    ]
+    important_tokens = [
+        str_token
+        for str_token, importance in tokens_and_importances
+        if importance >= config.threshold and str_token != "<|endoftext|>"
+    ]
     # Flip so we have the importance of all tokens for a given token
     return (
         np.array(importances_matrix),
