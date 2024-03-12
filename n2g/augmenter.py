@@ -148,8 +148,6 @@ class Augmenter:
 @dataclass
 class AugmentationConfig:
     max_length: int = 1024
-    inclusion_threshold: float = -0.5
-    exclusion_threshold: float = -0.5
     max_augmentations: int = 5
 
 
@@ -160,9 +158,9 @@ def augment(
     tokenizer: Tokenizer,
     prompt: str,
     aug: Augmenter,
-    important_tokens: Set[str],
+    important_tokens: set[str],
     config: AugmentationConfig,
-) -> Tuple[List[str], List[str]]:
+) -> list[str]:
     """Generate variations of a prompt using an augmenter"""
     prepend_bos = True
 
@@ -173,15 +171,8 @@ def augment(
 
     activations = feature_activation(tokens)[:]
 
-    initial_max: float = torch.max(activations).cpu().item()
     initial_argmax = typing.cast(int, torch.argmax(activations).cpu().item())
     max_char_position = len("".join(str_tokens[int(prepend_bos) : initial_argmax + 1]))
-
-    positive_prompts: List[str] = [prompt]
-    negative_prompts: List[str] = []
-
-    if config.max_augmentations == 0:
-        return positive_prompts, negative_prompts
 
     aug_prompts, aug_positions = aug.augment(
         prompt,
@@ -189,29 +180,5 @@ def augment(
         max_augmentations=config.max_augmentations,
         important_tokens=important_tokens,
     )
-    if not aug_prompts:
-        return positive_prompts, negative_prompts
 
-    aug_tokens, aug_str_tokens = tokenizer.batch_tokenize_with_str(aug_prompts, prepend_bos=prepend_bos)
-
-    all_aug_activations = feature_activation(aug_tokens)
-
-    for aug_prompt, aug_prompt_str_tokens, char_position, aug_activations in zip(
-        aug_prompts, aug_str_tokens, aug_positions, all_aug_activations
-    ):
-        aug_max: float = torch.max(aug_activations).cpu().item()
-        aug_argmax = typing.cast(int, torch.argmax(aug_activations).cpu().item())
-
-        # TODO implement this properly - when we mask multiple tokens,
-        # if they cross the max_char_position this will not necessarily be correct
-        if char_position < max_char_position:
-            aug_argmax += len(aug_prompt_str_tokens) - len(str_tokens)
-
-        proportion_drop: float = (aug_max - initial_max) / initial_max
-
-        if proportion_drop >= config.inclusion_threshold:
-            positive_prompts.append(aug_prompt)
-        elif proportion_drop < config.exclusion_threshold:
-            negative_prompts.append(aug_prompt)
-
-    return positive_prompts, negative_prompts
+    return [prompt] + aug_prompts

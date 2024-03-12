@@ -285,7 +285,7 @@ def augment_and_return(
         config=importance_config,
     )
 
-    positive_prompts, negative_prompts = augmenter.augment(
+    prompts = augmenter.augment(
         feature_activation,
         tokenizer,
         pruned_prompt,
@@ -294,22 +294,7 @@ def augment_and_return(
         config=augmentation_config,
     )
 
-    for prompt in positive_prompts:
-        (
-            importances_matrix,
-            _important_tokens,
-            tokens_and_activations,
-        ) = measure_importance(
-            feature_activation,
-            tokenizer,
-            prompt,
-            max_activation=base_max_act,
-            scale_factor=scale_factor,
-            config=importance_config,
-        )
-        info.append((importances_matrix, tokens_and_activations))
-
-    for prompt in negative_prompts:
+    for prompt in prompts:
         (
             importances_matrix,
             _important_tokens,
