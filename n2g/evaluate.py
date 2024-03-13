@@ -1,9 +1,8 @@
-from typing import Any, Callable, Dict, List
+from typing import Callable, List
 
 import numpy as np
 from jaxtyping import Bool, Float, Int
 from numpy.typing import NDArray
-from sklearn import metrics  # type: ignore[import]
 from torch import Tensor
 
 from .neuron_model import NeuronModel
@@ -42,11 +41,7 @@ def evaluate(
     assert not np.isnan(pred_activations).any(), "pred_activations should not contain NaNs"
     assert not np.isinf(pred_activations).any(), "pred_activations should not contain Infs"
 
-    firings: Bool[NDArray, "num_samples sample_length"] = activations >= fire_threshold
-    pred_firings: Bool[NDArray, "num_samples sample_length"] = pred_activations >= fire_threshold
+    firings: Bool[NDArray, " num_samples*sample_length"] = (activations >= fire_threshold).ravel()
+    pred_firings: Bool[NDArray, " num_samples*sample_length"] = (pred_activations >= fire_threshold).ravel()
 
-    report: Dict[str, Any] = metrics.classification_report(
-        firings.ravel(), pred_firings.ravel(), target_names=["non_firing", "firing"], output_dict=True
-    )  # type: ignore
-
-    return NeuronStats.from_metrics_classification_report(report)
+    return NeuronStats.from_firings(firings, pred_firings)

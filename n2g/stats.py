@@ -1,15 +1,18 @@
 import json
+import math
 from pathlib import Path
 from typing import Annotated, Any
 
-from pydantic import BaseModel, Field, PositiveInt
+from jaxtyping import Bool
+from numpy import ndarray
+from pydantic import BaseModel, Field
 
 
 class ClassStats(BaseModel):
-    precision: Annotated[float, Field(ge=0, le=1)]
+    precision: Annotated[float, Field(allow_inf_nan=True)]
     recall: Annotated[float, Field(ge=0, le=1)]
-    f1_score: Annotated[float, Field(ge=0, le=1)]
-    count: PositiveInt
+    f1_score: Annotated[float, Field(allow_inf_nan=True)]
+    count: Annotated[int, Field(ge=0)]
 
     @staticmethod
     def _from_stats(stats: dict[str, Any]) -> "ClassStats":
@@ -20,10 +23,48 @@ class ClassStats(BaseModel):
             count=stats["support"],
         )
 
+    @staticmethod
+    def from_trues(
+        trues: Bool[ndarray, " num_samples*sample_length"], pred_trues: Bool[ndarray, " num_samples*sample_length"]
+    ) -> "ClassStats":
+        """
+        Create ClassStats from arrays indicating which samples were this class
+        and which were predicted to be this class.
+
+        Args:
+            trues: A boolean array indicating which samples were this class.
+            pred_trues: A boolean array indicating which samples were predicted to be this class.
+        """
+        assert trues.shape == pred_trues.shape, (
+            "trues and pred_trues should have the same shape. "
+            f"trues shape: {trues.shape}  pred_trues shape: {pred_trues.shape}"
+        )
+        num_true_positives = (trues & pred_trues).sum()
+        num_false_positives = (~trues & pred_trues).sum()
+        num_false_negatives = (trues & ~pred_trues).sum()
+        if num_true_positives == 0:
+            if num_false_positives == 0:
+                precision = float("NaN")
+            else:
+                precision = 0
+            if num_false_negatives == 0:
+                recall = 1
+            else:
+                recall = 0
+        else:
+            precision = num_true_positives / (num_true_positives + num_false_positives)
+            recall = num_true_positives / (num_true_positives + num_false_negatives)
+        f1_score = 2 * precision * recall / (precision + recall) if precision + recall != 0 else 0
+        return ClassStats(precision=precision, recall=recall, f1_score=f1_score, count=trues.sum())
+
     def __post_init__(self) -> None:
-        assert 0 <= self.precision <= 1, f"Precision should be between 0 and 1, but got {self.precision}"
+        assert (
+            math.isnan(self.precision) or 0 <= self.precision <= 1
+        ), f"Precision should be NaN or between 0 and 1, but got {self.precision}"
         assert 0 <= self.recall <= 1, f"Recall should be between 0 and 1, but got {self.recall}"
-        assert 0 <= self.f1_score <= 1, f"F1 score should be between 0 and 1, but got {self.f1_score}"
+        assert (
+            math.isnan(self.f1_score) or 0 <= self.f1_score <= 1
+        ), f"F1 score should be NaN or between 0 and 1, but got {self.f1_score}"
         assert 0 <= self.count, f"Count should be non-negative, but got {self.count}"
 
     def equal(self, other: "ClassStats") -> bool:
@@ -56,6 +97,28 @@ class NeuronStats(BaseModel):
             accuracy=report["accuracy"],
             non_firing=ClassStats._from_stats(report["non_firing"]),
             firing=ClassStats._from_stats(report["firing"]),
+        )
+
+    @staticmethod
+    def from_firings(
+        firings: Bool[ndarray, " num_samples*sample_length"], pred_firings: Bool[ndarray, " num_samples*sample_length"]
+    ) -> "NeuronStats":
+        """
+        Create NeuronStats from firings and predicted firings.
+
+        Args:
+            firings: The actual firings.
+            pred_firings: The predicted firings.
+        """
+        assert firings.shape == pred_firings.shape, (
+            "firings and pred_firings should have the same shape. "
+            f"firings shape: {firings.shape}  pred_firings shape: {pred_firings.shape}"
+        )
+        accuracy = (firings == pred_firings).sum() / firings.size
+        return NeuronStats(
+            accuracy=accuracy,
+            non_firing=ClassStats.from_trues(~firings, ~pred_firings),
+            firing=ClassStats.from_trues(firings, pred_firings),
         )
 
     def equal(self, other: "NeuronStats") -> bool:
