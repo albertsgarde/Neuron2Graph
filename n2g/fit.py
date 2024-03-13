@@ -231,18 +231,16 @@ def measure_importance(
     important_tokens: List[str] = []
     tokens_and_importances: List[Tuple[str, float]] = [(str_token, 0) for str_token in str_tokens]
 
-    importances_matrix: Float[Tensor, "prompt_length prompt_length"] = 1 - all_masked_activations / unmasked_activations
-    importances_matrix = torch.where(
-        torch.isinf(importances_matrix) | torch.isnan(importances_matrix),
-        torch.zeros_like(importances_matrix),
-        importances_matrix,
+    importances_matrix: Float[Tensor, "prompt_length prompt_length"] = torch.where(
+        unmasked_activations == 0,
+        torch.zeros_like(all_masked_activations),
+        1 - all_masked_activations / unmasked_activations,
     )
 
     masked_maxes: Int[Tensor, " prompt_length"] = all_masked_activations[:, initial_argmax]
-    assert initial_max != 0
-    normalized_activations = 1 - (masked_maxes / initial_max)
+    token_importances = 1 - (masked_maxes / initial_max) if initial_max != 0 else torch.zeros_like(masked_maxes)
     tokens_and_importances = [
-        (str_token, importance.item()) for str_token, importance in zip(str_tokens, normalized_activations, strict=True)
+        (str_token, importance.item()) for str_token, importance in zip(str_tokens, token_importances, strict=True)
     ]
     important_tokens = [
         str_token
