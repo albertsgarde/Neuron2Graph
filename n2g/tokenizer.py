@@ -1,6 +1,7 @@
 from jaxtyping import Int
 from torch import Tensor
 from transformer_lens import HookedTransformer  # type: ignore[import]
+from transformers import PreTrainedTokenizer, PreTrainedTokenizerBase, PreTrainedTokenizerFast  # type: ignore[import]
 
 
 class Tokenizer:
@@ -8,6 +9,10 @@ class Tokenizer:
 
     def __init__(self, model: HookedTransformer) -> None:
         self._model = model
+
+    @property
+    def tokenizer(self) -> PreTrainedTokenizerBase | PreTrainedTokenizer | PreTrainedTokenizerFast:
+        return self._model.tokenizer
 
     def tokenize(self, samples: list[str], prepend_bos: bool) -> Int[Tensor, "num_samples sample_length"]:
         return self._model.to_tokens(samples, prepend_bos=prepend_bos)
