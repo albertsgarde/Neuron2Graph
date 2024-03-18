@@ -100,6 +100,19 @@ class NeuronStats(BaseModel):
         )
 
     @staticmethod
+    def from_dict(stats: dict[str, Any]) -> "NeuronStats":
+        """
+        Create NeuronStats from a dictionary.
+
+        Args:
+            stats: The dictionary.
+        """
+        return NeuronStats.model_validate(stats)
+
+    def to_dict(self) -> dict[str, Any]:
+        return self.model_dump()
+
+    @staticmethod
     def from_firings(
         firings: Bool[ndarray, " num_samples*sample_length"], pred_firings: Bool[ndarray, " num_samples*sample_length"]
     ) -> "NeuronStats":
