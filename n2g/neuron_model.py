@@ -274,6 +274,10 @@ class NeuronModel:
         tokens_and_activations: List[Tuple[str, float]],
         important_index_sets: List[Set[int]],
     ) -> List[List[Element]]:
+        """
+        Creates a list of patterns to be added to the neuron model.
+        Does not modify the neuron model itself.
+        """
         all_lines: List[List[Element]] = []
 
         for i, (_, activation) in enumerate(tokens_and_activations):
@@ -396,22 +400,17 @@ class NeuronModel:
 
         """Evaluate the activation on each token in some input tokens"""
         all_activations: List[List[float]] = []
-        all_firings: List[List[bool]] = []
 
         for tokens in tokens_arr:
             activations: List[float] = []
-            firings: List[bool] = []
 
             for j in range(len(tokens)):
                 token_activation = self._search(tokens[: len(tokens) - j])
                 activations.append(token_activation)
-                firings.append(token_activation > self.activation_threshold)
 
             activations = list(reversed(activations))
-            firings = list(reversed(firings))
 
             all_activations.append(activations)
-            all_firings.append(firings)
 
         return all_activations
 
