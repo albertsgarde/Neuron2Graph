@@ -10,6 +10,12 @@ from pydantic import BaseModel, ConfigDict, NonNegativeInt
 
 from .neuron_store import NeuronStore
 
+ROOT_TOKEN = "**ROOT**"
+IGNORE_TOKEN = "**IGNORE**"
+END_TOKEN = "**END**"
+
+SPECIAL_TOKENS = {ROOT_TOKEN, IGNORE_TOKEN, END_TOKEN}
+
 
 @dataclass
 class Sample:
@@ -31,6 +37,9 @@ class Element(BaseModel):
     ignore: bool
     is_end: bool
     token_value: str
+
+    def __post_init__(self):
+        assert self.token == self.token_value
 
 
 class NeuronNode:
@@ -110,8 +119,6 @@ def make_lines(
     important_index_sets: list[set[int]],
     importance_threshold: float,
     activation_threshold: float,
-    ignore_token: str,
-    end_token: str,
 ) -> list[Line]:
     """
     Creates a list of patterns to be added to the neuron model.
@@ -147,7 +154,7 @@ def make_lines(
             ignore = not important and j != 0
             is_end = False
 
-            seq_token_identifier = ignore_token if ignore else seq_token
+            seq_token_identifier = IGNORE_TOKEN if ignore else seq_token
 
             new_element = Element(
                 importance=importance,
@@ -171,12 +178,12 @@ def make_lines(
             Element(
                 importance=0,
                 activation=activation,
-                token=end_token,
+                token=END_TOKEN,
                 important=False,
                 activator=False,
                 ignore=True,
                 is_end=True,
-                token_value=end_token,
+                token_value=END_TOKEN,
             )
         )
         all_lines.append(line)
@@ -188,8 +195,6 @@ def samples_to_lines(
     samples: list[list[Sample]],
     importance_threshold: float,
     activation_threshold: float,
-    ignore_token: str,
-    end_token: str,
 ) -> list[Line]:
     lines = []
     for sample_set in samples:
@@ -201,18 +206,11 @@ def samples_to_lines(
                 original_sample_important_index_sets,
                 importance_threshold,
                 activation_threshold,
-                ignore_token,
-                end_token,
             )
     return lines
 
 
 class NeuronModel:
-    root_token: str
-    ignore_token: str
-    end_token: str
-    special_tokens: set[str]
-
     root: tuple[NeuronNode, NeuronEdge]
     trie_root: tuple[NeuronNode, NeuronEdge]
 
@@ -228,23 +226,18 @@ class NeuronModel:
         activation_threshold: float,
         importance_threshold: float,
     ):
-        self.root_token = "**ROOT**"
-        self.ignore_token = "**IGNORE**"
-        self.end_token = "**END**"
-        self.special_tokens = {self.root_token, self.ignore_token, self.end_token}
-
         self.root = (
             NeuronNode(
                 -1,
                 Element(
                     importance=0,
                     activation=0,
-                    token=self.root_token,
+                    token=ROOT_TOKEN,
                     important=False,
                     activator=False,
                     ignore=True,
                     is_end=False,
-                    token_value=self.root_token,
+                    token_value=ROOT_TOKEN,
                 ),
                 -1,
             ),
@@ -256,12 +249,12 @@ class NeuronModel:
                 Element(
                     importance=0,
                     activation=0,
-                    token=self.root_token,
+                    token=ROOT_TOKEN,
                     important=False,
                     activator=False,
                     ignore=True,
                     is_end=False,
-                    token_value=self.root_token,
+                    token_value=ROOT_TOKEN,
                 ),
                 -1,
             ),
@@ -346,27 +339,27 @@ class NeuronModel:
         while queue:
             node, _edge = queue.pop(0)
 
-            if self.ignore_token in node.children:
-                ignore_tuple = node.children[self.ignore_token]
+            if IGNORE_TOKEN in node.children:
+                ignore_tuple = node.children[IGNORE_TOKEN]
 
                 to_remove: list[str] = []
 
                 for child_token, (child_node, _child_edge) in node.children.items():
-                    if child_token == self.ignore_token:
+                    if child_token == IGNORE_TOKEN:
                         continue
 
                     child_paths = child_node.paths()
 
                     for path in child_paths:
                         # Don't merge if the path is only the first tuple, or the first tuple and an end tuple
-                        if len(path) <= 1 or (len(path) == 2 and path[-1].token == self.end_token):
+                        if len(path) <= 1 or (len(path) == 2 and path[-1].token == END_TOKEN):
                             continue
                         # Merge the path (not including the first tuple that we're merging)
                         self._add(ignore_tuple, path[1:], graph=False)
 
                     # Add the node to a list to be removed later if it isn't an end node
                     # and doesn't have an end node in its children
-                    if not child_node.value.is_end and self.end_token not in child_node.children:
+                    if not child_node.value.is_end and END_TOKEN not in child_node.children:
                         to_remove.append(child_token)
 
                 for child_token in to_remove:
@@ -382,9 +375,7 @@ class NeuronModel:
         self,
         samples: list[list[Sample]],
     ):
-        lines = samples_to_lines(
-            samples, self.importance_threshold, self.activation_threshold, self.ignore_token, self.end_token
-        )
+        lines = samples_to_lines(samples, self.importance_threshold, self.activation_threshold)
 
         for line in lines:
             self._add(self.root, line, graph=True)
@@ -402,11 +393,11 @@ class NeuronModel:
 
             current_node, _current_edge = current_tuple
 
-            if token in current_node.children or self.ignore_token in current_node.children:
+            if token in current_node.children or IGNORE_TOKEN in current_node.children:
                 current_tuple = (
                     current_node.children[token]
                     if token in current_node.children
-                    else current_node.children[self.ignore_token]
+                    else current_node.children[IGNORE_TOKEN]
                 )
 
                 node, _edge = current_tuple
@@ -415,8 +406,8 @@ class NeuronModel:
                     if not node.value.activator:
                         break
 
-                if self.end_token in node.children:
-                    end_node, _ = node.children[self.end_token]
+                if END_TOKEN in node.children:
+                    end_node, _ = node.children[END_TOKEN]
                     end_activation = end_node.value.activation
                     activations.append(end_activation)
 
@@ -574,7 +565,7 @@ class NeuronModel:
 
             token = node.value.token
 
-            if token not in self.special_tokens:
+            if token not in SPECIAL_TOKENS:
                 neuron_store.add_neuron(node.value.activator, token, f"{layer_name}_{neuron_index}")
 
             for _token, neighbour in node.children.items():
