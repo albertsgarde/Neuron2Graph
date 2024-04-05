@@ -6,7 +6,6 @@ from typing import Callable, Optional
 import numpy as np
 from graphviz import Digraph, escape  # type: ignore
 from jaxtyping import Float
-from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict, NonNegativeInt
 
 from .neuron_store import NeuronStore
@@ -95,20 +94,16 @@ def initialize_index_sets(
     importances_matrix, tokens_and_activations = pattern.tuple()
     result: list[set[int]] = []
 
-    for i in range(len(tokens_and_activations)):
-        important_indices: set[int] = set(
-            index
-            for index, (token, _) in enumerate(tokens_and_activations[: i + 1])
-            if token != "<|endoftext|>" and importances_matrix[index, i] > importance_threshold
-        )
-        result.append(important_indices)
+    end_of_text_indices = np.array([token == "<|endoftext|>" for token, _ in tokens_and_activations])
+    important_indices = np.tril((importances_matrix > importance_threshold).T & ~end_of_text_indices)
+
+    result = [set(np.where(row)[0]) for row in important_indices]
 
     return result
 
 
 def make_line(
-    importances_matrix: NDArray[np.float32],
-    tokens_and_activations: list[tuple[str, float]],
+    pattern: Pattern,
     important_index_sets: list[set[int]],
     importance_threshold: float,
     activation_threshold: float,
@@ -117,8 +112,9 @@ def make_line(
 ) -> list[list[Element]]:
     """
     Creates a list of patterns to be added to the neuron model.
-    Does not modify the neuron model itself.
     """
+    importances_matrix, tokens_and_activations = pattern.tuple()
+
     all_lines: list[list[Element]] = []
 
     for i, (_, activation) in enumerate(tokens_and_activations):
@@ -361,11 +357,11 @@ class NeuronModel:
         patterns: list[list[Pattern]],
     ):
         for pattern_set in patterns:
-            important_index_sets = initialize_index_sets(pattern_set[0], self.importance_threshold)
-            for importances_matrix, tokens_and_activations in (pattern.tuple() for pattern in pattern_set):
+            original_sample = pattern_set[0]
+            important_index_sets = initialize_index_sets(original_sample, self.importance_threshold)
+            for pattern in pattern_set:
                 lines = make_line(
-                    importances_matrix,
-                    tokens_and_activations,
+                    pattern,
                     important_index_sets,
                     self.importance_threshold,
                     self.activation_threshold,
