@@ -89,21 +89,18 @@ class NeuronEdge:
 
 
 def initialize_index_sets(
-    importances_matrix: NDArray[np.float32],
-    tokens_and_activations: list[tuple[str, float]],
+    pattern: Pattern,
     importance_threshold: float,
 ) -> list[set[int]]:
+    importances_matrix, tokens_and_activations = pattern.tuple()
     result: list[set[int]] = []
+
     for i in range(len(tokens_and_activations)):
-        important_indices: set[int] = set()
-        for j, (seq_token, _) in enumerate(reversed(tokens_and_activations[: i + 1])):
-            if seq_token == "<|endoftext|>":
-                continue
-            seq_index = i - j
-            importance = importances_matrix[seq_index, i]
-            importance = float(importance)
-            if importance > importance_threshold:
-                important_indices.add(seq_index)
+        important_indices: set[int] = set(
+            index
+            for index, (token, _) in enumerate(tokens_and_activations[: i + 1])
+            if token != "<|endoftext|>" and importances_matrix[index, i] > importance_threshold
+        )
         result.append(important_indices)
 
     return result
@@ -364,10 +361,7 @@ class NeuronModel:
         patterns: list[list[Pattern]],
     ):
         for pattern_set in patterns:
-            (first_importances, first_tokens_and_activations) = pattern_set[0].tuple()
-            important_index_sets = initialize_index_sets(
-                first_importances, first_tokens_and_activations, self.importance_threshold
-            )
+            important_index_sets = initialize_index_sets(pattern_set[0], self.importance_threshold)
             for importances_matrix, tokens_and_activations in (pattern.tuple() for pattern in pattern_set):
                 lines = make_line(
                     importances_matrix,
