@@ -87,7 +87,7 @@ class NeuronEdge:
         return f"Parent: {parent_str}\nChild: {child_str}"
 
 
-def initialize_index_sets(
+def important_index_sets(
     pattern: Pattern,
     importance_threshold: float,
 ) -> list[set[int]]:
@@ -102,20 +102,23 @@ def initialize_index_sets(
     return result
 
 
-def make_line(
+Line = list[Element]
+
+
+def make_lines(
     pattern: Pattern,
     important_index_sets: list[set[int]],
     importance_threshold: float,
     activation_threshold: float,
     ignore_token: str,
     end_token: str,
-) -> list[list[Element]]:
+) -> list[Line]:
     """
     Creates a list of patterns to be added to the neuron model.
     """
     importances_matrix, tokens_and_activations = pattern.tuple()
 
-    all_lines: list[list[Element]] = []
+    all_lines: list[Line] = []
 
     for i, (_, activation) in enumerate(tokens_and_activations):
         if not activation > activation_threshold:
@@ -123,7 +126,7 @@ def make_line(
 
         before = tokens_and_activations[: i + 1]
 
-        line: list[Element] = []
+        line: Line = []
         last_important = 0
 
         # The if else is a bit of a hack to account for augmentations that have a different number
@@ -356,23 +359,23 @@ class NeuronModel:
         self,
         patterns: list[list[Pattern]],
     ):
+        lines = []
         for pattern_set in patterns:
             original_sample = pattern_set[0]
-            important_index_sets = initialize_index_sets(original_sample, self.importance_threshold)
+            original_sample_important_index_sets = important_index_sets(original_sample, self.importance_threshold)
             for pattern in pattern_set:
-                lines = make_line(
+                lines += make_lines(
                     pattern,
-                    important_index_sets,
+                    original_sample_important_index_sets,
                     self.importance_threshold,
                     self.activation_threshold,
                     self.ignore_token,
                     self.end_token,
                 )
 
-                for line in lines:
-                    self._add(self.root, line, graph=True)
-                    self._add(self.trie_root, line, graph=False)
-
+        for line in lines:
+            self._add(self.root, line, graph=True)
+            self._add(self.trie_root, line, graph=False)
         self._merge_ignores()
 
     def _search(self, tokens: list[str]) -> float:
