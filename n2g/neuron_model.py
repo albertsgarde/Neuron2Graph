@@ -77,6 +77,106 @@ class NeuronEdge:
         return f"Parent: {parent_str}\nChild: {child_str}"
 
 
+def initialize_index_sets(
+    importances_matrix: NDArray[np.float32],
+    tokens_and_activations: List[Tuple[str, float]],
+    importance_threshold: float,
+) -> List[Set[int]]:
+    result: List[Set[int]] = []
+    for i in range(len(tokens_and_activations)):
+        important_indices: Set[int] = set()
+        for j, (seq_token, _) in enumerate(reversed(tokens_and_activations[: i + 1])):
+            if seq_token == "<|endoftext|>":
+                continue
+            seq_index = i - j
+            importance = importances_matrix[seq_index, i]
+            importance = float(importance)
+            if importance > importance_threshold:
+                important_indices.add(seq_index)
+        result.append(important_indices)
+
+    return result
+
+
+def make_line(
+    importances_matrix: NDArray[np.float32],
+    tokens_and_activations: List[Tuple[str, float]],
+    important_index_sets: List[Set[int]],
+    importance_threshold: float,
+    activation_threshold: float,
+    ignore_token: str,
+    end_token: str,
+) -> List[List[Element]]:
+    """
+    Creates a list of patterns to be added to the neuron model.
+    Does not modify the neuron model itself.
+    """
+    all_lines: List[List[Element]] = []
+
+    for i, (_, activation) in enumerate(tokens_and_activations):
+        if not activation > activation_threshold:
+            continue
+
+        before = tokens_and_activations[: i + 1]
+
+        line: List[Element] = []
+        last_important = 0
+
+        # The if else is a bit of a hack to account for augmentations that have a different number
+        # of tokens to the original prompt
+        important_indices = important_index_sets[i] if i < len(important_index_sets) else important_index_sets[-1]
+
+        for j, (seq_token, seq_activation) in enumerate(reversed(before)):
+            if seq_token == "<|endoftext|>":
+                continue
+
+            seq_index = len(before) - j - 1
+            importance = importances_matrix[seq_index, i]
+            importance = float(importance)
+
+            important = importance > importance_threshold or (seq_index in important_indices)
+            activator = seq_activation > activation_threshold
+
+            ignore = not important and j != 0
+            is_end = False
+
+            seq_token_identifier = ignore_token if ignore else seq_token
+
+            new_element = Element(
+                importance=importance,
+                activation=seq_activation,
+                token=seq_token_identifier,
+                important=important,
+                activator=activator,
+                ignore=ignore,
+                is_end=is_end,
+                token_value=seq_token,
+            )
+
+            if not ignore:
+                last_important = j
+
+            line.append(new_element)
+
+        line = line[: last_important + 1]
+        # Add an end node
+        line.append(
+            Element(
+                importance=0,
+                activation=activation,
+                token=end_token,
+                important=False,
+                activator=False,
+                ignore=True,
+                is_end=True,
+                token_value=end_token,
+            )
+        )
+        all_lines.append(line)
+
+    return all_lines
+
+
 class NeuronModel:
     root_token: str
     ignore_token: str
@@ -248,110 +348,25 @@ class NeuronModel:
                     visited.add(new_node.id_)
                     queue.append(neighbour)
 
-    def _initialize_index_sets(
-        self,
-        importances_matrix: NDArray[np.float32],
-        tokens_and_activations: List[Tuple[str, float]],
-    ) -> List[Set[int]]:
-        result: List[Set[int]] = []
-        for i in range(len(tokens_and_activations)):
-            important_indices: Set[int] = set()
-            for j, (seq_token, _) in enumerate(reversed(tokens_and_activations[: i + 1])):
-                if seq_token == "<|endoftext|>":
-                    continue
-                seq_index = i - j
-                importance = importances_matrix[seq_index, i]
-                importance = float(importance)
-                if importance > self.importance_threshold:
-                    important_indices.add(seq_index)
-            result.append(important_indices)
-
-        return result
-
-    def _make_line(
-        self,
-        importances_matrix: NDArray[np.float32],
-        tokens_and_activations: List[Tuple[str, float]],
-        important_index_sets: List[Set[int]],
-    ) -> List[List[Element]]:
-        """
-        Creates a list of patterns to be added to the neuron model.
-        Does not modify the neuron model itself.
-        """
-        all_lines: List[List[Element]] = []
-
-        for i, (_, activation) in enumerate(tokens_and_activations):
-            if not activation > self.activation_threshold:
-                continue
-
-            before = tokens_and_activations[: i + 1]
-
-            line: List[Element] = []
-            last_important = 0
-
-            # The if else is a bit of a hack to account for augmentations that have a different number
-            # of tokens to the original prompt
-            important_indices = important_index_sets[i] if i < len(important_index_sets) else important_index_sets[-1]
-
-            for j, (seq_token, seq_activation) in enumerate(reversed(before)):
-                if seq_token == "<|endoftext|>":
-                    continue
-
-                seq_index = len(before) - j - 1
-                importance = importances_matrix[seq_index, i]
-                importance = float(importance)
-
-                important = importance > self.importance_threshold or (seq_index in important_indices)
-                activator = seq_activation > self.activation_threshold
-
-                ignore = not important and j != 0
-                is_end = False
-
-                seq_token_identifier = self.ignore_token if ignore else seq_token
-
-                new_element = Element(
-                    importance=importance,
-                    activation=seq_activation,
-                    token=seq_token_identifier,
-                    important=important,
-                    activator=activator,
-                    ignore=ignore,
-                    is_end=is_end,
-                    token_value=seq_token,
-                )
-
-                if not ignore:
-                    last_important = j
-
-                line.append(new_element)
-
-            line = line[: last_important + 1]
-            # Add an end node
-            line.append(
-                Element(
-                    importance=0,
-                    activation=activation,
-                    token=self.end_token,
-                    important=False,
-                    activator=False,
-                    ignore=True,
-                    is_end=True,
-                    token_value=self.end_token,
-                )
-            )
-            all_lines.append(line)
-
-        return all_lines
-
     def fit(
         self,
         data: List[List[Tuple[NDArray[np.float32], List[Tuple[str, float]]]]],
     ):
         for example_data in data:
             (first_importances, first_tokens_and_activations) = example_data[0]
-            important_index_sets = self._initialize_index_sets(first_importances, first_tokens_and_activations)
+            important_index_sets = initialize_index_sets(
+                first_importances, first_tokens_and_activations, self.importance_threshold
+            )
             for importances_matrix, tokens_and_activations in example_data:
-                lines = self._make_line(importances_matrix, tokens_and_activations, important_index_sets)
+                lines = make_line(
+                    importances_matrix,
+                    tokens_and_activations,
+                    important_index_sets,
+                    self.importance_threshold,
+                    self.activation_threshold,
+                    self.ignore_token,
+                    self.end_token,
+                )
 
                 for line in lines:
                     self._add(self.root, line, graph=True)
