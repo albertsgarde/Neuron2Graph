@@ -184,6 +184,29 @@ def make_lines(
     return all_lines
 
 
+def patterns_to_lines(
+    patterns: list[list[Pattern]],
+    importance_threshold: float,
+    activation_threshold: float,
+    ignore_token: str,
+    end_token: str,
+) -> list[Line]:
+    lines = []
+    for pattern_set in patterns:
+        original_sample = pattern_set[0]
+        original_sample_important_index_sets = important_index_sets(original_sample, importance_threshold)
+        for pattern in pattern_set:
+            lines += make_lines(
+                pattern,
+                original_sample_important_index_sets,
+                importance_threshold,
+                activation_threshold,
+                ignore_token,
+                end_token,
+            )
+    return lines
+
+
 class NeuronModel:
     root_token: str
     ignore_token: str
@@ -359,19 +382,9 @@ class NeuronModel:
         self,
         patterns: list[list[Pattern]],
     ):
-        lines = []
-        for pattern_set in patterns:
-            original_sample = pattern_set[0]
-            original_sample_important_index_sets = important_index_sets(original_sample, self.importance_threshold)
-            for pattern in pattern_set:
-                lines += make_lines(
-                    pattern,
-                    original_sample_important_index_sets,
-                    self.importance_threshold,
-                    self.activation_threshold,
-                    self.ignore_token,
-                    self.end_token,
-                )
+        lines = patterns_to_lines(
+            patterns, self.importance_threshold, self.activation_threshold, self.ignore_token, self.end_token
+        )
 
         for line in lines:
             self._add(self.root, line, graph=True)
