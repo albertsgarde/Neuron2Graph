@@ -1,7 +1,7 @@
 import math
 import typing
 from dataclasses import dataclass
-from typing import Any, Callable, List, Optional, Tuple, TypeVar
+from typing import Callable, List, Optional, Tuple, TypeVar
 
 import numpy as np
 import torch
@@ -11,7 +11,7 @@ from torch import Tensor
 
 from . import augmenter, word_tokenizer
 from .augmenter import AugmentationConfig, Augmenter
-from .neuron_model import NeuronModel
+from .neuron_model import NeuronModel, Pattern
 from .tokenizer import Tokenizer
 
 T = TypeVar("T")
@@ -265,8 +265,8 @@ def augment_and_return(
     scale_factor: float,
     importance_config: ImportanceConfig,
     augmentation_config: AugmentationConfig,
-) -> List[Tuple[NDArray[np.float32], List[Tuple[str, float]]]]:
-    info: List[Tuple[NDArray[np.float32], List[Tuple[str, float]]]] = []
+) -> list[Pattern]:
+    patterns: list[Pattern] = []
     (
         importances_matrix,
         important_tokens,
@@ -302,9 +302,9 @@ def augment_and_return(
             scale_factor=scale_factor,
             config=importance_config,
         )
-        info.append((importances_matrix, tokens_and_activations))
+        patterns.append(Pattern(importances_matrix, tokens_and_activations))
 
-    return info
+    return patterns
 
 
 @dataclass
@@ -321,12 +321,12 @@ def fit_neuron_model(
         [Int[Tensor, "num_samples sample_length"]], Float[Tensor, "num_samples sample_length"]
     ],
     tokenizer: Tokenizer,
-    train_samples: List[str],
+    train_samples: list[str],
     augmenter: Augmenter,
     base_max_act: float,
     config: FitConfig,
 ) -> NeuronModel:
-    all_info: List[List[Tuple[NDArray[Any], List[Tuple[str, float]]]]] = []
+    all_info: list[list[Pattern]] = []
     for i, sample in enumerate(train_samples):
         print(f"Processing {i + 1} of {len(train_samples)}", flush=True)
 

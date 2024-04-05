@@ -1,13 +1,24 @@
 import json
 from collections import Counter, defaultdict
-from typing import Callable, Dict, List, Optional, Set, Tuple
+from dataclasses import dataclass
+from typing import Callable, Optional
 
 import numpy as np
 from graphviz import Digraph, escape  # type: ignore
+from jaxtyping import Float
 from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict, NonNegativeInt
 
 from .neuron_store import NeuronStore
+
+
+@dataclass
+class Pattern:
+    importances: Float[np.ndarray, "prompt_length prompt_length"]
+    tokens_and_activations: list[tuple[str, float]]
+
+    def tuple(self) -> tuple[Float[np.ndarray, "prompt_length prompt_length"], list[tuple[str, float]]]:
+        return self.importances, self.tokens_and_activations
 
 
 class Element(BaseModel):
@@ -28,7 +39,7 @@ class NeuronNode:
     value: Element
     depth: int
 
-    children: Dict[str, Tuple["NeuronNode", "NeuronEdge"]]
+    children: dict[str, tuple["NeuronNode", "NeuronEdge"]]
 
     def __init__(
         self,
@@ -36,7 +47,7 @@ class NeuronNode:
         value: Element,
         depth: int,
     ):
-        self.children: Dict[str, Tuple[NeuronNode, NeuronEdge]] = {}
+        self.children: dict[str, tuple[NeuronNode, NeuronEdge]] = {}
         self.id_ = id_
         self.value = value
         self.depth = depth
@@ -44,10 +55,10 @@ class NeuronNode:
     def __repr__(self):
         return f"ID: {self.id_}, Value: {json.dumps(self.value)}"
 
-    def paths(self) -> List[List[Element]]:
+    def paths(self) -> list[list[Element]]:
         if not self.children:  # If the node has no children
             return [[self.value]]  # one path: only contains self.value
-        paths: List[List[Element]] = []
+        paths: list[list[Element]] = []
         for _, child_tuple in self.children.items():
             child_node, _ = child_tuple
             for path in child_node.paths():
@@ -79,12 +90,12 @@ class NeuronEdge:
 
 def initialize_index_sets(
     importances_matrix: NDArray[np.float32],
-    tokens_and_activations: List[Tuple[str, float]],
+    tokens_and_activations: list[tuple[str, float]],
     importance_threshold: float,
-) -> List[Set[int]]:
-    result: List[Set[int]] = []
+) -> list[set[int]]:
+    result: list[set[int]] = []
     for i in range(len(tokens_and_activations)):
-        important_indices: Set[int] = set()
+        important_indices: set[int] = set()
         for j, (seq_token, _) in enumerate(reversed(tokens_and_activations[: i + 1])):
             if seq_token == "<|endoftext|>":
                 continue
@@ -100,18 +111,18 @@ def initialize_index_sets(
 
 def make_line(
     importances_matrix: NDArray[np.float32],
-    tokens_and_activations: List[Tuple[str, float]],
-    important_index_sets: List[Set[int]],
+    tokens_and_activations: list[tuple[str, float]],
+    important_index_sets: list[set[int]],
     importance_threshold: float,
     activation_threshold: float,
     ignore_token: str,
     end_token: str,
-) -> List[List[Element]]:
+) -> list[list[Element]]:
     """
     Creates a list of patterns to be added to the neuron model.
     Does not modify the neuron model itself.
     """
-    all_lines: List[List[Element]] = []
+    all_lines: list[list[Element]] = []
 
     for i, (_, activation) in enumerate(tokens_and_activations):
         if not activation > activation_threshold:
@@ -119,7 +130,7 @@ def make_line(
 
         before = tokens_and_activations[: i + 1]
 
-        line: List[Element] = []
+        line: list[Element] = []
         last_important = 0
 
         # The if else is a bit of a hack to account for augmentations that have a different number
@@ -181,10 +192,10 @@ class NeuronModel:
     root_token: str
     ignore_token: str
     end_token: str
-    special_tokens: Set[str]
+    special_tokens: set[str]
 
-    root: Tuple[NeuronNode, NeuronEdge]
-    trie_root: Tuple[NeuronNode, NeuronEdge]
+    root: tuple[NeuronNode, NeuronEdge]
+    trie_root: tuple[NeuronNode, NeuronEdge]
 
     activation_threshold: float
     importance_threshold: float
@@ -243,7 +254,7 @@ class NeuronModel:
         self.trie_node_count = 0
         self.max_depth: int = 0
 
-    def __call__(self, tokens_arr: List[List[str]]) -> List[List[float]]:
+    def __call__(self, tokens_arr: list[list[str]]) -> list[list[float]]:
         return self.forward(tokens_arr)
 
     @staticmethod
@@ -258,8 +269,8 @@ class NeuronModel:
 
     def _add(
         self,
-        start_tuple: Tuple[NeuronNode, NeuronEdge],
-        line: List[Element],
+        start_tuple: tuple[NeuronNode, NeuronEdge],
+        line: list[Element],
         graph: bool = True,
     ) -> None:
         current_tuple = start_tuple
@@ -307,8 +318,8 @@ class NeuronModel:
           - Fully merge if the other node is not an end node
           - Give the ignore node the other node's children (if it has any) if the other node is an end node
         """
-        visited: Set[int] = set()  # List to keep track of visited nodes.
-        queue: List[Tuple[NeuronNode, NeuronEdge]] = []  # Initialize a queue
+        visited: set[int] = set()  # list to keep track of visited nodes.
+        queue: list[tuple[NeuronNode, NeuronEdge]] = []  # Initialize a queue
 
         visited.add(self.trie_root[0].id_)
         queue.append(self.trie_root)
@@ -319,7 +330,7 @@ class NeuronModel:
             if self.ignore_token in node.children:
                 ignore_tuple = node.children[self.ignore_token]
 
-                to_remove: List[str] = []
+                to_remove: list[str] = []
 
                 for child_token, (child_node, _child_edge) in node.children.items():
                     if child_token == self.ignore_token:
@@ -350,14 +361,14 @@ class NeuronModel:
 
     def fit(
         self,
-        data: List[List[Tuple[NDArray[np.float32], List[Tuple[str, float]]]]],
+        patterns: list[list[Pattern]],
     ):
-        for example_data in data:
-            (first_importances, first_tokens_and_activations) = example_data[0]
+        for pattern_set in patterns:
+            (first_importances, first_tokens_and_activations) = pattern_set[0].tuple()
             important_index_sets = initialize_index_sets(
                 first_importances, first_tokens_and_activations, self.importance_threshold
             )
-            for importances_matrix, tokens_and_activations in example_data:
+            for importances_matrix, tokens_and_activations in (pattern.tuple() for pattern in pattern_set):
                 lines = make_line(
                     importances_matrix,
                     tokens_and_activations,
@@ -374,7 +385,7 @@ class NeuronModel:
 
         self._merge_ignores()
 
-    def _search(self, tokens: List[str]) -> float:
+    def _search(self, tokens: list[str]) -> float:
         """Evaluate the activation on the first token in tokens"""
         current_tuple = self.trie_root
 
@@ -409,15 +420,15 @@ class NeuronModel:
         # Return the activation on the longest sequence
         return activations[-1]
 
-    def forward(self, tokens_arr: List[List[str]]) -> List[List[float]]:
+    def forward(self, tokens_arr: list[list[str]]) -> list[list[float]]:
         if isinstance(tokens_arr[0], str):
-            raise ValueError("tokens_arr must be of type List[List[str]]")
+            raise ValueError("tokens_arr must be of type list[list[str]]")
 
         """Evaluate the activation on each token in some input tokens"""
-        all_activations: List[List[float]] = []
+        all_activations: list[list[float]] = []
 
         for tokens in tokens_arr:
-            activations: List[float] = []
+            activations: list[float] = []
 
             for j in range(len(tokens)):
                 token_activation = self._search(tokens[: len(tokens) - j])
@@ -430,30 +441,30 @@ class NeuronModel:
         return all_activations
 
     @staticmethod
-    def _clamp(arr: Tuple[int, int, int]):
+    def _clamp(arr: tuple[int, int, int]):
         return [max(0, min(x, 255)) for x in arr]
 
     def graphviz(
         self,
     ) -> Digraph:
         """Build a graph to visualise"""
-        visited: Set[int] = set()  # List to keep track of visited nodes.
-        queue: List[Tuple[NeuronNode, NeuronEdge]] = []  # Initialize a queue
+        visited: set[int] = set()  # list to keep track of visited nodes.
+        queue: list[tuple[NeuronNode, NeuronEdge]] = []  # Initialize a queue
 
         visited.add(self.root[0].id_)
         queue.append(self.root)
 
         zero_width = "\u200b"
 
-        tokens_by_layer: Dict[int, Dict[str, str]] = {}
-        node_id_to_graph_id: Dict[int, str] = {}
-        token_by_layer_count: Dict[int, Counter[str]] = defaultdict(Counter)
-        added_ids: Set[str] = set()
+        tokens_by_layer: dict[int, dict[str, str]] = {}
+        node_id_to_graph_id: dict[int, str] = {}
+        token_by_layer_count: dict[int, Counter[str]] = defaultdict(Counter)
+        added_ids: set[str] = set()
         node_count: int = 0
-        depth_to_subgraph: Dict[int, Digraph] = {}
-        added_edges: Set[Tuple[str, str]] = set()
+        depth_to_subgraph: dict[int, Digraph] = {}
+        added_edges: set[tuple[str, str]] = set()
 
-        node_edge_tuples: List[Tuple[NeuronNode, NeuronEdge]] = []
+        node_edge_tuples: list[tuple[NeuronNode, NeuronEdge]] = []
 
         adjust: Callable[[float, float], float] = lambda x, y: (x - y) / (1 - y)
 
@@ -546,8 +557,8 @@ class NeuronModel:
         return net
 
     def update_neuron_store(self, neuron_store: NeuronStore, layer_name: str, neuron_index: int) -> None:
-        visited: Set[int] = set()  # List to keep track of visited nodes.
-        queue: List[Tuple[NeuronNode, NeuronEdge]] = []  # Initialize a queue
+        visited: set[int] = set()  # list to keep track of visited nodes.
+        queue: list[tuple[NeuronNode, NeuronEdge]] = []  # Initialize a queue
 
         visited.add(self.trie_root[0].id_)
         queue.append(self.trie_root)
