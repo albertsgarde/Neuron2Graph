@@ -12,7 +12,7 @@ from .neuron_store import NeuronStore
 
 
 @dataclass
-class Pattern:
+class Sample:
     importances: Float[np.ndarray, "prompt_length prompt_length"]
     tokens_and_activations: list[tuple[str, float]]
 
@@ -88,10 +88,10 @@ class NeuronEdge:
 
 
 def important_index_sets(
-    pattern: Pattern,
+    sample: Sample,
     importance_threshold: float,
 ) -> list[set[int]]:
-    importances_matrix, tokens_and_activations = pattern.tuple()
+    importances_matrix, tokens_and_activations = sample.tuple()
     result: list[set[int]] = []
 
     end_of_text_indices = np.array([token == "<|endoftext|>" for token, _ in tokens_and_activations])
@@ -106,7 +106,7 @@ Line = list[Element]
 
 
 def make_lines(
-    pattern: Pattern,
+    sample: Sample,
     important_index_sets: list[set[int]],
     importance_threshold: float,
     activation_threshold: float,
@@ -116,7 +116,7 @@ def make_lines(
     """
     Creates a list of patterns to be added to the neuron model.
     """
-    importances_matrix, tokens_and_activations = pattern.tuple()
+    importances_matrix, tokens_and_activations = sample.tuple()
 
     all_lines: list[Line] = []
 
@@ -184,20 +184,20 @@ def make_lines(
     return all_lines
 
 
-def patterns_to_lines(
-    patterns: list[list[Pattern]],
+def samples_to_lines(
+    samples: list[list[Sample]],
     importance_threshold: float,
     activation_threshold: float,
     ignore_token: str,
     end_token: str,
 ) -> list[Line]:
     lines = []
-    for pattern_set in patterns:
-        original_sample = pattern_set[0]
+    for sample_set in samples:
+        original_sample = sample_set[0]
         original_sample_important_index_sets = important_index_sets(original_sample, importance_threshold)
-        for pattern in pattern_set:
+        for sample in sample_set:
             lines += make_lines(
-                pattern,
+                sample,
                 original_sample_important_index_sets,
                 importance_threshold,
                 activation_threshold,
@@ -380,10 +380,10 @@ class NeuronModel:
 
     def fit(
         self,
-        patterns: list[list[Pattern]],
+        samples: list[list[Sample]],
     ):
-        lines = patterns_to_lines(
-            patterns, self.importance_threshold, self.activation_threshold, self.ignore_token, self.end_token
+        lines = samples_to_lines(
+            samples, self.importance_threshold, self.activation_threshold, self.ignore_token, self.end_token
         )
 
         for line in lines:

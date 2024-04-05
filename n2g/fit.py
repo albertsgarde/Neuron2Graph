@@ -11,7 +11,7 @@ from torch import Tensor
 
 from . import augmenter, word_tokenizer
 from .augmenter import AugmentationConfig, Augmenter
-from .neuron_model import NeuronModel, Pattern
+from .neuron_model import NeuronModel, Sample
 from .tokenizer import Tokenizer
 
 T = TypeVar("T")
@@ -265,8 +265,8 @@ def augment_and_return(
     scale_factor: float,
     importance_config: ImportanceConfig,
     augmentation_config: AugmentationConfig,
-) -> list[Pattern]:
-    patterns: list[Pattern] = []
+) -> list[Sample]:
+    samples: list[Sample] = []
     (
         importances_matrix,
         important_tokens,
@@ -302,9 +302,9 @@ def augment_and_return(
             scale_factor=scale_factor,
             config=importance_config,
         )
-        patterns.append(Pattern(importances_matrix, tokens_and_activations))
+        samples.append(Sample(importances_matrix, tokens_and_activations))
 
-    return patterns
+    return samples
 
 
 @dataclass
@@ -326,7 +326,7 @@ def fit_neuron_model(
     base_max_act: float,
     config: FitConfig,
 ) -> NeuronModel:
-    all_info: list[list[Pattern]] = []
+    all_samples: list[list[Sample]] = []
     for i, sample in enumerate(train_samples):
         print(f"Processing {i + 1} of {len(train_samples)}", flush=True)
 
@@ -335,7 +335,7 @@ def fit_neuron_model(
         for pruned_prompt, initial_max_act, truncated_max_act in pruned_results:
             scale_factor = initial_max_act / truncated_max_act
 
-            info = augment_and_return(
+            samples = augment_and_return(
                 feature_activation,
                 tokenizer,
                 augmenter,
@@ -345,11 +345,12 @@ def fit_neuron_model(
                 importance_config=config.importance_config,
                 augmentation_config=config.augmentation_config,
             )
-            all_info.append(info)
+            all_samples.append(samples)
 
     neuron_model = NeuronModel(
         config.activation_threshold,
         config.importance_threshold,
     )
-    neuron_model.fit(all_info)
+    neuron_model.fit(all_samples)
+
     return neuron_model
