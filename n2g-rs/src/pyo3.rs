@@ -1,5 +1,4 @@
 use pyo3::prelude::*;
-use tokenizers::Tokenizer;
 
 use crate::{
     feature_model::{CompactFeatureModel, FeatureModel, Pattern},
@@ -65,10 +64,21 @@ impl PyPattern {
         activation: f32,
     ) -> Self {
         let activating_token = token_from_i32(activating_token);
+        assert!((0. ..=1.).contains(&activating_importance), 
+            "Importance of activating token '{}' is not in the range [0, 1]. Activation: {activating_importance}.", 
+            activating_token.0
+        );
         let context: Vec<(CompactPatternToken, _)> = context
             .into_iter()
             .map(|(token, importance)| (token.into(), importance))
             .collect();
+        if let Some((index, (token, activation))) = context
+            .iter()
+            .enumerate()
+            .find(|(_, &(_, importance))| !(0. ..=1.).contains(&importance))
+        {
+            panic!("Importance of token '{token:?}' at index {index} is not in the range [0, 1]. Activation: {activation}.")
+        }
         let pattern = Pattern::new(activating_token, activating_importance, context, activation);
         PyPattern { pattern }
     }
@@ -110,21 +120,29 @@ impl PyFeatureModel {
         )
     }
 
-    pub fn graphviz(&self, tokenizer: &Tokenizer) -> String {
-        self.model.graphviz(|token| {
-            tokenizer.decode(&[token.0], false).unwrap_or_else(|err| {
-                format!(
-                    "Failed to decode token '{}' due to error '{}'.",
-                    token.0, err
-                )
-            })
-        })
+    pub fn graphviz(&self, token_to_str: Bound<'_, PyAny>) -> String {
+        let decode = |Token(token): Token| -> String {
+            token_to_str
+                .call1((token,))
+                .unwrap_or_else(|err| {
+                    panic!(
+                        "Failed to decode token '{token}' due to error '{err}'.",
+                    )
+                })
+                .extract()
+                .unwrap_or_else(|err| {
+                    panic!(
+                        "Failed to extract token '{token}' due to error '{err}'.",
+                    )
+                })
+        };
+        self.model.graphviz_string(decode)
     }
 }
 
 /// A Python module implemented in Rust.
 #[pymodule]
-fn n2g_rs(_py: Python, m: &PyModule) -> PyResult<()> {
+fn n2g_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyPatternToken>()?;
     m.add_class::<PyPattern>()?;
     m.add_class::<PyFeatureModel>()?;

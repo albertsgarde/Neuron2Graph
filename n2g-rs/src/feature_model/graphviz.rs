@@ -1,7 +1,4 @@
-use std::{
-    collections::{BTreeMap, HashMap},
-    iter,
-};
+use std::{collections::BTreeMap, iter};
 
 use graphviz_rust::{
     dot_generator::edge,
@@ -13,9 +10,10 @@ use graphviz_rust::{
 use itertools::Either;
 use louds_rs::LoudsNodeNum;
 
-use crate::token::{self, Token};
+use crate::token::Token;
 
-use super::{CompactFeatureModel, FeatureModel};
+use super::CompactFeatureModel;
+
 fn index_to_vertex(index: u64) -> Vertex {
     Vertex::N(NodeId(Id::Plain(format!("{index}")), None))
 }
@@ -211,5 +209,10 @@ impl CompactFeatureModel {
             strict: false,
             stmts: statements,
         }
+    }
+
+    pub fn graphviz_string(&self, decode: impl Fn(Token) -> String) -> String {
+        let graph = self.graphviz(decode);
+        graph.print(&mut PrinterContext::new(true, 2, "\n".to_string(), 90))
     }
 }

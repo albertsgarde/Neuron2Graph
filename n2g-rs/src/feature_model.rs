@@ -82,7 +82,7 @@ impl FeatureModel {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct CompactFeatureModelNode {
     token: CompactPatternToken,
     end_node: Option<f32>,
