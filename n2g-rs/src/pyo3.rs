@@ -65,7 +65,7 @@ impl PyPattern {
     ) -> Self {
         let activating_token = token_from_i32(activating_token);
         assert!((0. ..=1.).contains(&activating_importance), 
-            "Importance of activating token '{}' is not in the range [0, 1]. Activation: {activating_importance}.", 
+            "Importance of activating token '{}' is not in the range [0, 1]. Importance: {activating_importance}.", 
             activating_token.0
         );
         let context: Vec<(CompactPatternToken, _)> = context
@@ -77,7 +77,7 @@ impl PyPattern {
             .enumerate()
             .find(|(_, &(_, importance))| !(0. ..=1.).contains(&importance))
         {
-            panic!("Importance of token '{token:?}' at index {index} is not in the range [0, 1]. Activation: {activation}.")
+            panic!("Importance of token '{token:?}' at index {index} is not in the range [0, 1]. Importance: {activation}.")
         }
         let pattern = Pattern::new(activating_token, activating_importance, context, activation);
         PyPattern { pattern }
