@@ -6,7 +6,10 @@ from typing import Callable, Optional
 import numpy as np
 from graphviz import Digraph, escape  # type: ignore
 from jaxtyping import Float
+from n2g_rs import FeatureModel, Pattern, PatternToken
 from pydantic import BaseModel, ConfigDict, NonNegativeInt
+
+from n2g.tokenizer import Tokenizer
 
 from .neuron_store import NeuronStore
 
@@ -573,3 +576,30 @@ class NeuronModel:
                 if new_node.id_ not in visited:
                     visited.add(new_node.id_)
                     queue.append(neighbour)
+
+
+def element_to_pattern_token(tokenizer: Tokenizer, element: Element) -> Optional[tuple[PatternToken, float]]:
+    if element.is_end:
+        return None
+    if element.ignore:
+        return (PatternToken.ignore(), element.importance)
+    token = tokenizer.str_to_id(element.token)
+    return (PatternToken.regular(token), element.importance)
+
+
+def line_to_pattern(tokenizer: Tokenizer, line: Line) -> Pattern:
+    activating = line[0]
+    assert not activating.ignore
+    assert not activating.is_end
+    activating_token = tokenizer.str_to_id(activating.token)
+    activating_importance = activating.importance
+    activation = activating.activation
+    context_tokens = [
+        token for token in (element_to_pattern_token(tokenizer, element) for element in line[1:]) if token is not None
+    ]
+    return Pattern.from_tokens(activating_token, activating_importance, context_tokens, activation)
+
+
+def model_from_lines(tokenizer: Tokenizer, lines: list[Line]) -> FeatureModel:
+    patterns = [line_to_pattern(tokenizer, line) for line in lines]
+    return FeatureModel.from_patterns(patterns)
