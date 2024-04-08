@@ -138,6 +138,28 @@ impl PyFeatureModel {
         };
         self.model.graphviz_string(decode)
     }
+
+    pub fn to_json(&self) -> String {
+        serde_json::to_string(&self.model).expect("Failed to serialize feature model to JSON.")
+    }
+
+    #[staticmethod]
+    pub fn from_json(json: &str) -> Self {
+        let model: CompactFeatureModel =
+            serde_json::from_str(json).expect("Failed to deserialize feature model from JSON.");
+        PyFeatureModel { model }
+    }
+
+    pub fn to_bin(&self) -> Vec<u8> {
+        postcard::to_allocvec(&self.model).expect("Failed to serialize feature model to binary.")
+    }
+
+    #[staticmethod]
+    pub fn from_bin(bin: &[u8]) -> Self {
+        let model: CompactFeatureModel =
+            postcard::from_bytes(bin).expect("Failed to deserialize feature model from binary.");
+        PyFeatureModel { model }
+    }
 }
 
 /// A Python module implemented in Rust.
