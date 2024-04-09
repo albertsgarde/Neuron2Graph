@@ -21,6 +21,14 @@ impl CompactPatternToken {
         self.token == other.0 || self.token == u32::MAX
     }
 
+    pub const fn regular(self) -> Option<Token> {
+        if self.token == u32::MAX {
+            None
+        } else {
+            Some(Token(self.token))
+        }
+    }
+
     pub const fn unpack(self) -> PatternToken {
         if self.token == u32::MAX {
             PatternToken::Ignore

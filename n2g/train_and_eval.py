@@ -5,6 +5,7 @@ from torch import Tensor
 
 from . import evaluate, fit
 from .augmenter import Augmenter
+from .feature_model import FeatureModel
 from .fit import FitConfig
 from .neuron_model import NeuronModel
 from .stats import NeuronStats
@@ -22,7 +23,7 @@ def train_and_eval(
     base_max_activation: float,
     fire_threshold: float,
     fit_config: FitConfig,
-) -> Tuple[NeuronModel, NeuronStats]:
+) -> Tuple[FeatureModel, NeuronStats]:
     neuron_model = fit.fit_neuron_model(
         feature_activation,
         tokenizer,

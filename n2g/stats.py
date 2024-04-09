@@ -79,6 +79,17 @@ class ClassStats(BaseModel):
             and self.count == other.count
         )
 
+    def better(self, other: "ClassStats") -> bool:
+        """
+        Check if self is better than other.
+        """
+        return (
+            self.precision >= other.precision
+            and self.recall >= other.recall
+            and self.f1_score >= other.f1_score
+            and self.count == other.count
+        )
+
 
 class NeuronStats(BaseModel):
     accuracy: Annotated[float, Field(ge=0, le=1)]
@@ -143,6 +154,16 @@ class NeuronStats(BaseModel):
             self.accuracy == other.accuracy
             and self.non_firing.equal(other.non_firing)
             and self.firing.equal(other.firing)
+        )
+
+    def better(self, other: "NeuronStats") -> bool:
+        """
+        Check if self is better than other.
+        """
+        return (
+            self.accuracy > other.accuracy
+            and self.firing.better(other.firing)
+            and self.non_firing.better(other.non_firing)
         )
 
 

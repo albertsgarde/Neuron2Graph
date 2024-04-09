@@ -18,6 +18,7 @@ from transformers import (  # type: ignore[import]
     PreTrainedTokenizer,
 )
 
+from n2g.feature_model import FeatureModel
 from n2g.stats import NeuronStats  # type: ignore
 
 from . import scrape, train_and_eval
@@ -109,9 +110,15 @@ def run_layer(
     word_to_casings: WordToCasings,
     device: device,
     train_config: TrainConfig,
+<<<<<<< HEAD
 ) -> Tuple[list[NeuronModel | None], list[NeuronStats | None]]:
     feature_models: list[NeuronModel | None] = []
     feature_stats: list[NeuronStats | None] = []
+=======
+) -> Tuple[list[FeatureModel], list[NeuronStats]]:
+    feature_models: list[FeatureModel] = []
+    feature_stats: list[NeuronStats] = []
+>>>>>>> 054199f... :poop:
 
     augmenter = default_augmenter(word_to_casings, device)
 
@@ -159,10 +166,10 @@ def run_training(
     neuron_store: NeuronStore,
     all_stats: Dict[int, Dict[int, NeuronStats]],
     config: TrainConfig,
-) -> Tuple[Dict[int, Dict[int, NeuronModel]], NeuronStore, Dict[int, Dict[int, NeuronStats]]]:
+) -> Tuple[Dict[int, Dict[int, FeatureModel]], NeuronStore, Dict[int, Dict[int, NeuronStats]]]:
     random.seed(config.random_seed)
 
-    neuron_models: Dict[int, Dict[int, NeuronModel]] = {}
+    neuron_models: Dict[int, Dict[int, FeatureModel]] = {}
 
     tokenizer = Tokenizer(model)
 
@@ -192,7 +199,7 @@ def run_training(
                 fit_config=config.fit_config,
             )
 
-            neuron_model.update_neuron_store(neuron_store, str(layer_index), neuron_index)
+            neuron_store.update(f"{layer_index}_{neuron_index}", neuron_model)
 
             neuron_models[layer_index][neuron_index] = neuron_model
             all_stats[layer_index][neuron_index] = stats
@@ -211,7 +218,7 @@ def run(
     all_stats: Dict[int, Dict[int, NeuronStats]],
     config: TrainConfig,
     device: device,
-) -> Tuple[Dict[int, Dict[int, NeuronModel]], NeuronStore, Dict[int, Dict[int, NeuronStats]]]:
+) -> Tuple[Dict[int, Dict[int, FeatureModel]], NeuronStore, Dict[int, Dict[int, NeuronStats]]]:
     model: HookedTransformer = HookedTransformer.from_pretrained(model_name).to(device)  # type: ignore
 
     aug_model: PreTrainedModel = typing.cast(

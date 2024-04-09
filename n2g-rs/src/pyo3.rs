@@ -64,21 +64,10 @@ impl PyPattern {
         activation: f32,
     ) -> Self {
         let activating_token = token_from_i32(activating_token);
-        assert!((0. ..=1.).contains(&activating_importance), 
-            "Importance of activating token '{}' is not in the range [0, 1]. Importance: {activating_importance}.", 
-            activating_token.0
-        );
         let context: Vec<(CompactPatternToken, _)> = context
             .into_iter()
             .map(|(token, importance)| (token.into(), importance))
             .collect();
-        if let Some((index, (token, activation))) = context
-            .iter()
-            .enumerate()
-            .find(|(_, &(_, importance))| !(0. ..=1.).contains(&importance))
-        {
-            panic!("Importance of token '{token:?}' at index {index} is not in the range [0, 1]. Importance: {activation}.")
-        }
         let pattern = Pattern::new(activating_token, activating_importance, context, activation);
         PyPattern { pattern }
     }
@@ -125,18 +114,26 @@ impl PyFeatureModel {
             token_to_str
                 .call1((token,))
                 .unwrap_or_else(|err| {
-                    panic!(
-                        "Failed to decode token '{token}' due to error '{err}'.",
-                    )
+                    panic!("Failed to decode token '{token}' due to error '{err}'.",)
                 })
                 .extract()
                 .unwrap_or_else(|err| {
-                    panic!(
-                        "Failed to extract token '{token}' due to error '{err}'.",
-                    )
+                    panic!("Failed to extract token '{token}' due to error '{err}'.",)
                 })
         };
         self.model.graphviz_string(decode)
+    }
+
+    pub fn tokens(&self) -> Vec<(i32, bool)> {
+        self.model
+            .tokens()
+            .map(|(Token(token), activating)| {
+                (
+                    token.try_into().expect("Token greater than 2147483647."),
+                    activating,
+                )
+            })
+            .collect()
     }
 
     pub fn to_json(&self) -> String {

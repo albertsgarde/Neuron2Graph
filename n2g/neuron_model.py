@@ -11,8 +11,6 @@ from pydantic import BaseModel, ConfigDict, NonNegativeInt
 
 from n2g.tokenizer import Tokenizer
 
-from .neuron_store import NeuronStore
-
 ROOT_TOKEN = "**ROOT**"
 IGNORE_TOKEN = "**IGNORE**"
 END_TOKEN = "**END**"
@@ -421,10 +419,10 @@ class NeuronModel:
         return activations[-1]
 
     def forward(self, tokens_arr: list[list[str]]) -> list[list[float]]:
+        """Evaluate the activation on each token in some input tokens"""
         if isinstance(tokens_arr[0], str):
             raise ValueError("tokens_arr must be of type list[list[str]]")
 
-        """Evaluate the activation on each token in some input tokens"""
         all_activations: list[list[float]] = []
 
         for tokens in tokens_arr:
@@ -555,51 +553,3 @@ class NeuronModel:
             net.subgraph(subgraph)  # type: ignore
 
         return net
-
-    def update_neuron_store(self, neuron_store: NeuronStore, layer_name: str, neuron_index: int) -> None:
-        visited: set[int] = set()  # list to keep track of visited nodes.
-        queue: list[tuple[NeuronNode, NeuronEdge]] = []  # Initialize a queue
-
-        visited.add(self.trie_root[0].id_)
-        queue.append(self.trie_root)
-
-        while queue:
-            node, _ = queue.pop(0)
-
-            token = node.value.token
-
-            if token not in SPECIAL_TOKENS:
-                neuron_store.add_neuron(node.value.activator, token, f"{layer_name}_{neuron_index}")
-
-            for _token, neighbour in node.children.items():
-                new_node, _new_edge = neighbour
-                if new_node.id_ not in visited:
-                    visited.add(new_node.id_)
-                    queue.append(neighbour)
-
-
-def element_to_pattern_token(tokenizer: Tokenizer, element: Element) -> Optional[tuple[PatternToken, float]]:
-    if element.is_end:
-        return None
-    if element.ignore:
-        return (PatternToken.ignore(), element.importance)
-    token = tokenizer.str_to_id(element.token)
-    return (PatternToken.regular(token), element.importance)
-
-
-def line_to_pattern(tokenizer: Tokenizer, line: Line) -> Pattern:
-    activating = line[0]
-    assert not activating.ignore
-    assert not activating.is_end
-    activating_token = tokenizer.str_to_id(activating.token)
-    activating_importance = activating.importance
-    activation = activating.activation
-    context_tokens = [
-        token for token in (element_to_pattern_token(tokenizer, element) for element in line[1:]) if token is not None
-    ]
-    return Pattern.from_tokens(activating_token, activating_importance, context_tokens, activation)
-
-
-def model_from_lines(tokenizer: Tokenizer, lines: list[Line]) -> FeatureModel:
-    patterns = [line_to_pattern(tokenizer, line) for line in lines]
-    return FeatureModel.from_patterns(patterns)

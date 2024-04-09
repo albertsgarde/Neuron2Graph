@@ -5,7 +5,7 @@ from jaxtyping import Bool, Float, Int
 from numpy.typing import NDArray
 from torch import Tensor
 
-from .neuron_model import NeuronModel
+from .feature_model import FeatureModel
 from .stats import NeuronStats
 from .tokenizer import Tokenizer
 
@@ -15,7 +15,7 @@ def evaluate(
         [Int[Tensor, "num_samples sample_length"]], Float[Tensor, "num_samples sample_length"]
     ],
     tokenizer: Tokenizer,
-    neuron_model: NeuronModel,
+    neuron_model: FeatureModel,
     base_max_act: float,
     test_samples: List[str],
     fire_threshold: float,
@@ -34,8 +34,8 @@ def evaluate(
     assert not np.isinf(activations).any(), "activations should not contain Infs"
 
     # Get predicted activations
-    for sample_index, sample_str_tokens in enumerate(test_str_tokens):
-        pred_sample_activations = neuron_model.forward([sample_str_tokens])[0]
+    for sample_index, (sample_tokens, _sample_str_tokens) in enumerate(zip(test_tokens, test_str_tokens)):
+        pred_sample_activations = neuron_model.forward_tokens([[token for token in sample_tokens]])[0]
         pred_activations[sample_index, :] = np.array(pred_sample_activations)
 
     assert not np.isnan(pred_activations).any(), "pred_activations should not contain NaNs"

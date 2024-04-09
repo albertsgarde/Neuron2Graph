@@ -9,9 +9,10 @@ from jaxtyping import Float, Int
 from numpy.typing import NDArray
 from torch import Tensor
 
-from . import augmenter, word_tokenizer
+from . import augmenter, neuron_model as fit_model, word_tokenizer
 from .augmenter import AugmentationConfig, Augmenter
-from .neuron_model import NeuronModel, Sample
+from .feature_model import FeatureModel
+from .neuron_model import Sample
 from .tokenizer import Tokenizer
 
 T = TypeVar("T")
@@ -206,6 +207,9 @@ def measure_importance(
     tokens, str_tokens_list = tokenizer.batch_tokenize_with_str([prompt], prepend_bos=config.prepend_bos)
     str_tokens: list[str] = str_tokens_list[0]
 
+    for str_token in str_tokens:
+        assert tokenizer.str_to_id(str_token) is not None
+
     if len(tokens[0]) > config.max_length:
         tokens = tokens[0, : config.max_length].unsqueeze(0)
 
@@ -268,9 +272,9 @@ def augment_and_return(
 ) -> list[Sample]:
     samples: list[Sample] = []
     (
-        importances_matrix,
+        _importances_matrix,
         important_tokens,
-        tokens_and_activations,
+        _tokens_and_activations,
     ) = measure_importance(
         feature_activation,
         tokenizer,
@@ -325,7 +329,7 @@ def fit_neuron_model(
     augmenter: Augmenter,
     base_max_act: float,
     config: FitConfig,
-) -> NeuronModel:
+) -> FeatureModel:
     all_samples: list[list[Sample]] = []
     for i, sample in enumerate(train_samples):
         print(f"Processing {i + 1} of {len(train_samples)}", flush=True)
@@ -347,10 +351,8 @@ def fit_neuron_model(
             )
             all_samples.append(samples)
 
-    neuron_model = NeuronModel(
-        config.activation_threshold,
-        config.importance_threshold,
+    feature_model = FeatureModel.from_samples(
+        tokenizer, all_samples, config.importance_threshold, config.activation_threshold
     )
-    neuron_model.fit(all_samples)
 
-    return neuron_model
+    return feature_model

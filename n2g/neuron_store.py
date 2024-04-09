@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from typing import Dict, List, Set
 
+from n2g.feature_model import FeatureModel
+
 
 class NeuronStore:
     def __init__(self) -> None:
@@ -37,6 +39,10 @@ class NeuronStore:
                 "important": NeuronStore._store_to_lists(self._important),
             }
             json.dump(store, ofh, indent=2, ensure_ascii=False)
+
+    def update(self, neuron_id: str, model: FeatureModel) -> None:
+        for token, activating in model.tokens():
+            self.add_neuron(activating, token, neuron_id)
 
     def add_neuron(self, activating: bool, token: str, neuron: str) -> None:
         store = self._activating if activating else self._important
