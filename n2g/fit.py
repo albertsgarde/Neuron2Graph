@@ -207,9 +207,6 @@ def measure_importance(
     tokens, str_tokens_list = tokenizer.batch_tokenize_with_str([prompt], prepend_bos=config.prepend_bos)
     str_tokens: list[str] = str_tokens_list[0]
 
-    for str_token in str_tokens:
-        assert tokenizer.str_to_id(str_token) is not None
-
     if len(tokens[0]) > config.max_length:
         tokens = tokens[0, : config.max_length].unsqueeze(0)
 
