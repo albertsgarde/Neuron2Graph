@@ -168,6 +168,7 @@ class NeuronStats(BaseModel):
 
 
 def dump_neuron_stats(stats_path: Path, stats: dict[int, dict[int, NeuronStats]]) -> None:
+    stats_path.mkdir(parents=True, exist_ok=True)
     with open(stats_path, "w") as ofh:
         json.dump(
             {
