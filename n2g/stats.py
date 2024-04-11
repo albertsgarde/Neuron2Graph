@@ -161,7 +161,7 @@ class NeuronStats(BaseModel):
         Check if self is better than other.
         """
         return (
-            self.accuracy > other.accuracy
+            self.accuracy >= other.accuracy
             and self.firing.better(other.firing)
             and self.non_firing.better(other.non_firing)
         )
