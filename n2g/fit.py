@@ -53,6 +53,7 @@ class PruneConfig:
     max_post_context_tokens: int = 5
     skip_threshold: int = 0
     skip_interval: int = 5
+    prepend_bos: bool = True
 
 
 def prune(
@@ -67,10 +68,8 @@ def prune(
     Prune an input prompt to the shortest string that preserves x% of neuron activation on the most activating token.
     """
 
-    prepend_bos = True
-
     tokens: Int[Tensor, " sample_length"]
-    tokens, str_tokens = tokenizer.tokenize_with_str(prompt, prepend_bos=prepend_bos)
+    tokens, str_tokens = tokenizer.tokenize_with_str(prompt, prepend_bos=config.prepend_bos)
 
     # If we instead took pre-tokenized input, we would not need this check.
     if tokens.shape[-1] > config.max_length:
@@ -139,7 +138,7 @@ def prune(
 
         truncated_max: Optional[float] = None
         for i, (truncated_batch, added_tokens_batch) in enumerate(zip(batched_truncated_prompts, batched_added_tokens)):
-            truncated_tokens = tokenizer.tokenize(truncated_batch, prepend_bos=prepend_bos)
+            truncated_tokens = tokenizer.tokenize(truncated_batch, prepend_bos=config.prepend_bos)
 
             all_truncated_activations = feature_activation(truncated_tokens).cpu()
 
@@ -147,7 +146,7 @@ def prune(
                 num_added_tokens = added_tokens_batch[j]
                 truncated_argmax = torch.argmax(truncated_activations).cpu().item() + num_added_tokens
 
-                if prepend_bos:
+                if config.prepend_bos:
                     truncated_argmax -= 1
                 truncated_max = torch.max(truncated_activations).cpu().item()
 
@@ -187,6 +186,7 @@ class ImportanceConfig:
     max_length: int = 1024
     masking_token: int = 1
     threshold: float = 0.8
+    prepend_bos: bool = True
 
 
 def measure_importance(
@@ -202,9 +202,8 @@ def measure_importance(
     """Compute a measure of token importance by masking each token and measuring the drop in activation on
     the max activating token"""
 
-    prepend_bos = True
     tokens: Int[Tensor, "1 prompt_length"]
-    tokens, str_tokens_list = tokenizer.batch_tokenize_with_str([prompt], prepend_bos=prepend_bos)
+    tokens, str_tokens_list = tokenizer.batch_tokenize_with_str([prompt], prepend_bos=config.prepend_bos)
     str_tokens: list[str] = str_tokens_list[0]
 
     if len(tokens[0]) > config.max_length:

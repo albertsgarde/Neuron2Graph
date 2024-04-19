@@ -149,6 +149,7 @@ class Augmenter:
 class AugmentationConfig:
     max_length: int = 1024
     max_augmentations: int = 5
+    prepend_bos: bool = True
 
 
 def augment(
@@ -162,9 +163,8 @@ def augment(
     config: AugmentationConfig,
 ) -> list[str]:
     """Generate variations of a prompt using an augmenter"""
-    prepend_bos = True
 
-    tokens, str_tokens = tokenizer.tokenize_with_str(prompt, prepend_bos=prepend_bos)
+    tokens, str_tokens = tokenizer.tokenize_with_str(prompt, prepend_bos=config.prepend_bos)
 
     if len(tokens) > config.max_length:
         tokens = tokens[: config.max_length]
@@ -172,7 +172,7 @@ def augment(
     activations = feature_activation(tokens)[:]
 
     initial_argmax = typing.cast(int, torch.argmax(activations).cpu().item())
-    max_char_position = len("".join(str_tokens[int(prepend_bos) : initial_argmax + 1]))
+    max_char_position = len("".join(str_tokens[int(config.prepend_bos) : initial_argmax + 1]))
 
     aug_prompts, aug_positions = aug.augment(
         prompt,
