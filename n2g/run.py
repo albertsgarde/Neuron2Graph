@@ -1,4 +1,5 @@
 import random
+import sys
 import typing
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional, Tuple
@@ -33,6 +34,7 @@ class TrainConfig:
     fire_threshold: float
     train_proportion: float
     random_seed: int
+    stop_on_error: bool
 
     def __init__(
         self,
@@ -40,6 +42,7 @@ class TrainConfig:
         fire_threshold: float = 0.5,
         train_proportion: float = 0.5,
         random_seed: int = 0,
+        stop_on_error: bool = True,
     ) -> None:
         if fit_config is None:
             self.fit_config = FitConfig(
@@ -52,6 +55,7 @@ class TrainConfig:
         self.fire_threshold = fire_threshold
         self.train_proportion = train_proportion
         self.random_seed = random_seed
+        self.stop_on_error = stop_on_error
 
 
 def layer_index_to_name(layer_index: int, layer_ending: str) -> str:
@@ -104,9 +108,9 @@ def run_layer(
     word_to_casings: WordToCasings,
     device: device,
     train_config: TrainConfig,
-) -> Tuple[list[NeuronModel], list[NeuronStats]]:
-    feature_models: list[NeuronModel] = []
-    feature_stats: list[NeuronStats] = []
+) -> Tuple[list[NeuronModel | None], list[NeuronStats | None]]:
+    feature_models: list[NeuronModel | None] = []
+    feature_stats: list[NeuronStats | None] = []
 
     augmenter = default_augmenter(word_to_casings, device)
 
@@ -118,16 +122,24 @@ def run_layer(
             train_samples, train_size=train_config.train_proportion, random_state=train_config.random_seed
         )
 
-        neuron_model, stats = train_and_eval.train_and_eval(
-            feature_activation(feature_index),
-            tokenizer,
-            augmenter,
-            train_samples,
-            test_samples,
-            base_max_activation,
-            fire_threshold=train_config.fire_threshold,
-            fit_config=train_config.fit_config,
-        )
+        try:
+            neuron_model, stats = train_and_eval.train_and_eval(
+                feature_activation(feature_index),
+                tokenizer,
+                augmenter,
+                train_samples,
+                test_samples,
+                base_max_activation,
+                fire_threshold=train_config.fire_threshold,
+                fit_config=train_config.fit_config,
+            )
+        except Exception as e:
+            if train_config.stop_on_error:
+                raise e
+            print(f"Error: {e}", file=sys.stderr)
+
+            neuron_model = None
+            stats = None
 
         feature_models.append(neuron_model)
         feature_stats.append(stats)
