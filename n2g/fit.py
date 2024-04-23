@@ -79,6 +79,8 @@ def prune(
     assert activations.shape == tokens.shape
 
     full_initial_max = torch.max(activations).cpu().item()
+    if full_initial_max == 0:
+        return []
 
     (
         sentences,
@@ -159,6 +161,7 @@ def prune(
                         or (config.absolute_threshold is not None and truncated_max >= config.absolute_threshold)
                     )
                 ) or (i == len(batched_truncated_prompts) - 1 and j == len(all_truncated_activations) - 1):
+                    assert truncated_max > 0, "Truncated max should be positive at this point."
                     shortest_successful_prompt = shortest_prompt
                     finished = True
                     break
