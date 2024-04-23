@@ -1,8 +1,9 @@
 import random
 import sys
+import traceback
 import typing
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 import torch
 from jaxtyping import Float, Int
@@ -99,7 +100,7 @@ def default_augmenter(word_to_casings: WordToCasings, device: device) -> Augment
 
 
 def run_layer(
-    num_features: int,
+    feature_indices: Sequence[int],
     feature_activation: Callable[
         [int], Callable[[Int[Tensor, "num_samples sample_length"]], Float[Tensor, "num_samples sample_length"]]
     ],
@@ -114,7 +115,7 @@ def run_layer(
 
     augmenter = default_augmenter(word_to_casings, device)
 
-    for feature_index in range(num_features):
+    for feature_index in feature_indices:
         print(f"{feature_index=}", flush=True)
         train_samples, base_max_activation = feature_samples(feature_index)
 
@@ -136,7 +137,8 @@ def run_layer(
         except Exception as e:
             if train_config.stop_on_error:
                 raise e
-            print(f"Error: {e}", file=sys.stderr)
+            print(f"Error on feature {feature_index}", file=sys.stderr)
+            traceback.print_exception(e)
 
             neuron_model = None
             stats = None
