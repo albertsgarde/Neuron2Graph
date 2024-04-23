@@ -79,7 +79,7 @@ def prune(
     assert activations.shape == tokens.shape
 
     full_initial_max = torch.max(activations).cpu().item()
-    if full_initial_max == 0:
+    if full_initial_max <= 0:
         return []
 
     (
@@ -115,9 +115,7 @@ def prune(
         added_tokens: List[int] = []
 
         count = 0
-        full_prior = prior_context[
-            : max(0, initial_argmax - config.window + 1)
-        ]  # This `window` thing seems insane. Maybe remove it?
+        full_prior = prior_context[: max(0, initial_argmax - config.window + 1)]
 
         for i in reversed(range(len(full_prior))):
             count += 1
@@ -139,6 +137,7 @@ def prune(
         finished = False
 
         truncated_max: Optional[float] = None
+        shortest_successful_prompt: str | None = None
         for i, (truncated_batch, added_tokens_batch) in enumerate(zip(batched_truncated_prompts, batched_added_tokens)):
             truncated_tokens = tokenizer.tokenize(truncated_batch, prepend_bos=config.prepend_bos)
 
@@ -161,25 +160,23 @@ def prune(
                         or (config.absolute_threshold is not None and truncated_max >= config.absolute_threshold)
                     )
                 ) or (i == len(batched_truncated_prompts) - 1 and j == len(all_truncated_activations) - 1):
-                    assert truncated_max > 0, "Truncated max should be positive at this point."
-                    shortest_successful_prompt = shortest_prompt
+                    if truncated_max > 0:
+                        shortest_successful_prompt = shortest_prompt
                     finished = True
                     break
 
             if finished:
                 break
 
-        if shortest_successful_prompt is None:
-            raise Exception("No successful prompt found")
+        if shortest_successful_prompt is not None:
+            pruned_sentence: str = shortest_successful_prompt
 
-        pruned_sentence: str = shortest_successful_prompt
+            pruned_sentence += "".join(post_context[: config.max_post_context_tokens])
 
-        pruned_sentence += "".join(post_context[: config.max_post_context_tokens])
-
-        pruned_sentences.append(pruned_sentence)
-        initial_maxes.append(initial_max)
-        assert truncated_max is not None, "Truncated max is None"
-        truncated_maxes.append(truncated_max)
+            pruned_sentences.append(pruned_sentence)
+            initial_maxes.append(initial_max)
+            assert truncated_max is not None, "Truncated max is None"
+            truncated_maxes.append(truncated_max)
 
     return list(zip(pruned_sentences, initial_maxes, truncated_maxes))
 
