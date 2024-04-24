@@ -24,7 +24,6 @@ from n2g.stats import NeuronStats  # type: ignore
 from . import scrape, train_and_eval
 from .augmenter import AugmentationConfig, Augmenter, WordToCasings
 from .fit import FitConfig, ImportanceConfig, PruneConfig
-from .neuron_model import NeuronModel
 from .neuron_store import NeuronStore
 from .tokenizer import Tokenizer
 from .word_tokenizer import WordTokenizer
@@ -110,15 +109,9 @@ def run_layer(
     word_to_casings: WordToCasings,
     device: device,
     train_config: TrainConfig,
-<<<<<<< HEAD
-) -> Tuple[list[NeuronModel | None], list[NeuronStats | None]]:
-    feature_models: list[NeuronModel | None] = []
+) -> Tuple[list[FeatureModel | None], list[NeuronStats | None]]:
+    feature_models: list[FeatureModel | None] = []
     feature_stats: list[NeuronStats | None] = []
-=======
-) -> Tuple[list[FeatureModel], list[NeuronStats]]:
-    feature_models: list[FeatureModel] = []
-    feature_stats: list[NeuronStats] = []
->>>>>>> 054199f... :poop:
 
     augmenter = default_augmenter(word_to_casings, device)
 

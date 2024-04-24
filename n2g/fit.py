@@ -9,7 +9,7 @@ from jaxtyping import Float, Int
 from numpy.typing import NDArray
 from torch import Tensor
 
-from . import augmenter, neuron_model as fit_model, word_tokenizer
+from . import augmenter, word_tokenizer
 from .augmenter import AugmentationConfig, Augmenter
 from .feature_model import FeatureModel
 from .neuron_model import Sample
@@ -109,8 +109,6 @@ def prune(
         prior_context = relevant_str_tokens[: initial_argmax + 1]
 
         post_context = relevant_str_tokens[initial_argmax + 1 :]
-
-        shortest_successful_prompt: Optional[str] = None
 
         truncated_prompts: List[str] = []
         added_tokens: List[int] = []

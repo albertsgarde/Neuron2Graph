@@ -6,10 +6,7 @@ from typing import Callable, Optional
 import numpy as np
 from graphviz import Digraph, escape  # type: ignore
 from jaxtyping import Float
-from n2g_rs import FeatureModel, Pattern, PatternToken
 from pydantic import BaseModel, ConfigDict, NonNegativeInt
-
-from n2g.tokenizer import Tokenizer
 
 ROOT_TOKEN = "**ROOT**"
 IGNORE_TOKEN = "**IGNORE**"
