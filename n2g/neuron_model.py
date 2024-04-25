@@ -36,7 +36,6 @@ class Element(BaseModel):
     activator: bool
     ignore: bool
     is_end: bool
-    token_value: str
 
     def __post_init__(self):
         assert self.token == self.token_value
@@ -164,7 +163,6 @@ def make_lines(
                 activator=activator,
                 ignore=ignore,
                 is_end=is_end,
-                token_value=seq_token,
             )
 
             if not ignore:
@@ -183,7 +181,6 @@ def make_lines(
                 activator=False,
                 ignore=True,
                 is_end=True,
-                token_value=END_TOKEN,
             )
         )
         all_lines.append(line)
@@ -237,7 +234,6 @@ class NeuronModel:
                     activator=False,
                     ignore=True,
                     is_end=False,
-                    token_value=ROOT_TOKEN,
                 ),
                 -1,
             ),
@@ -254,7 +250,6 @@ class NeuronModel:
                     activator=False,
                     ignore=True,
                     is_end=False,
-                    token_value=ROOT_TOKEN,
                 ),
                 -1,
             ),
