@@ -109,8 +109,6 @@ def prune(
 
         post_context = relevant_str_tokens[initial_argmax + 1 :]
 
-        shortest_successful_prompt: Optional[str] = None
-
         truncated_prompts: List[str] = []
         added_tokens: List[int] = []
 
