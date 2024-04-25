@@ -1,7 +1,7 @@
 import json
 from collections import Counter, defaultdict
 from dataclasses import dataclass
-from typing import Callable, Optional
+from typing import Callable
 
 import numpy as np
 from graphviz import Digraph, escape  # type: ignore
@@ -46,7 +46,7 @@ class NeuronNode:
     value: Element
     depth: int
 
-    children: dict[str, tuple["NeuronNode", "NeuronEdge"]]
+    children: dict[str, "NeuronNode"]
 
     def __init__(
         self,
@@ -54,7 +54,7 @@ class NeuronNode:
         value: Element,
         depth: int,
     ):
-        self.children: dict[str, tuple[NeuronNode, NeuronEdge]] = {}
+        self.children: dict[str, NeuronNode] = {}
         self.id_ = id_
         self.value = value
         self.depth = depth
@@ -66,33 +66,10 @@ class NeuronNode:
         if not self.children:  # If the node has no children
             return [[self.value]]  # one path: only contains self.value
         paths: list[list[Element]] = []
-        for _, child_tuple in self.children.items():
-            child_node, _ = child_tuple
+        for _, child_node in self.children.items():
             for path in child_node.paths():
                 paths.append([self.value] + path)
         return paths
-
-
-class NeuronEdge:
-    parent: Optional[NeuronNode]
-    child: Optional[NeuronNode]
-
-    def __init__(
-        self,
-        parent: Optional[NeuronNode],
-        child: Optional[NeuronNode],
-    ):
-        self.parent = parent
-        self.child = child
-
-    @staticmethod
-    def create_root() -> "NeuronEdge":
-        return NeuronEdge(None, None)
-
-    def __repr__(self):
-        parent_str = json.dumps(self.parent.id_) if self.parent is not None else "None"
-        child_str = json.dumps(self.child.id_) if self.child is not None else "None"
-        return f"Parent: {parent_str}\nChild: {child_str}"
 
 
 def important_index_sets(
@@ -208,8 +185,8 @@ def samples_to_lines(
 
 
 class NeuronModel:
-    root: tuple[NeuronNode, NeuronEdge]
-    trie_root: tuple[NeuronNode, NeuronEdge]
+    root: NeuronNode
+    trie_root: NeuronNode
 
     activation_threshold: float
     importance_threshold: float
@@ -223,37 +200,32 @@ class NeuronModel:
         activation_threshold: float,
         importance_threshold: float,
     ):
-        self.root = (
-            NeuronNode(
-                -1,
-                Element(
-                    importance=0,
-                    activation=0,
-                    token=ROOT_TOKEN,
-                    important=False,
-                    activator=False,
-                    ignore=True,
-                    is_end=False,
-                ),
-                -1,
+        self.root = NeuronNode(
+            -1,
+            Element(
+                importance=0,
+                activation=0,
+                token=ROOT_TOKEN,
+                important=False,
+                activator=False,
+                ignore=True,
+                is_end=False,
             ),
-            NeuronEdge.create_root(),
+            -1,
         )
-        self.trie_root = (
-            NeuronNode(
-                -1,
-                Element(
-                    importance=0,
-                    activation=0,
-                    token=ROOT_TOKEN,
-                    important=False,
-                    activator=False,
-                    ignore=True,
-                    is_end=False,
-                ),
-                -1,
+
+        self.trie_root = NeuronNode(
+            -1,
+            Element(
+                importance=0,
+                activation=0,
+                token=ROOT_TOKEN,
+                important=False,
+                activator=False,
+                ignore=True,
+                is_end=False,
             ),
-            NeuronEdge.create_root(),
+            -1,
         )
         self.activation_threshold = activation_threshold
         self.importance_threshold = importance_threshold
@@ -276,14 +248,14 @@ class NeuronModel:
 
     def _add(
         self,
-        start_tuple: tuple[NeuronNode, NeuronEdge],
+        start_node: NeuronNode,
         line: list[Element],
         graph: bool = True,
     ) -> None:
-        current_tuple = start_tuple
+        current_node = start_node
         important_count = 0
 
-        start_depth = current_tuple[0].depth
+        start_depth = current_node.depth
 
         for i, element in enumerate(line):
             if element.ignore and graph:
@@ -301,21 +273,18 @@ class NeuronModel:
                 is_end = i == len(line) - 2
                 element.is_end = is_end
 
-            current_node, _ = current_tuple
-
             if element.token in current_node.children:
-                current_tuple = current_node.children[element.token]
+                current_node = current_node.children[element.token]
                 continue
 
             depth = start_depth + important_count
             new_node = NeuronNode(self.node_count, element, depth)
-            new_tuple = (new_node, NeuronEdge(current_node, new_node))
 
             self.max_depth = depth if depth > self.max_depth else self.max_depth
 
-            current_node.children[element.token] = new_tuple
+            current_node.children[element.token] = new_node
 
-            current_tuple = new_tuple
+            current_node = new_node
 
             self.node_count += 1
 
@@ -326,20 +295,20 @@ class NeuronModel:
           - Give the ignore node the other node's children (if it has any) if the other node is an end node
         """
         visited: set[int] = set()  # list to keep track of visited nodes.
-        queue: list[tuple[NeuronNode, NeuronEdge]] = []  # Initialize a queue
+        queue: list[NeuronNode] = []  # Initialize a queue
 
-        visited.add(self.trie_root[0].id_)
+        visited.add(self.trie_root.id_)
         queue.append(self.trie_root)
 
         while queue:
-            node, _edge = queue.pop(0)
+            node = queue.pop(0)
 
             if IGNORE_TOKEN in node.children:
                 ignore_tuple = node.children[IGNORE_TOKEN]
 
                 to_remove: list[str] = []
 
-                for child_token, (child_node, _child_edge) in node.children.items():
+                for child_token, child_node in node.children.items():
                     if child_token == IGNORE_TOKEN:
                         continue
 
@@ -360,11 +329,10 @@ class NeuronModel:
                 for child_token in to_remove:
                     node.children.pop(child_token)
 
-            for _token, neighbour in node.children.items():
-                new_node, _new_edge = neighbour
+            for _token, new_node in node.children.items():
                 if new_node.id_ not in visited:
                     visited.add(new_node.id_)
-                    queue.append(neighbour)
+                    queue.append(new_node)
 
     def fit(
         self,
@@ -386,7 +354,7 @@ class NeuronModel:
         for i, token in enumerate(reversed(tokens)):
             token = self._normalise(token)
 
-            current_node, _current_edge = current_tuple
+            current_node = current_tuple
 
             if token in current_node.children or IGNORE_TOKEN in current_node.children:
                 current_tuple = (
@@ -395,14 +363,14 @@ class NeuronModel:
                     else current_node.children[IGNORE_TOKEN]
                 )
 
-                node, _edge = current_tuple
+                node = current_tuple
                 # If the first token is not an activator, return early
                 if i == 0:
                     if not node.value.activator:
                         break
 
                 if END_TOKEN in node.children:
-                    end_node, _ = node.children[END_TOKEN]
+                    end_node = node.children[END_TOKEN]
                     end_activation = end_node.value.activation
                     activations.append(end_activation)
 
@@ -441,10 +409,11 @@ class NeuronModel:
     ) -> Digraph:
         """Build a graph to visualise"""
         visited: set[int] = set()  # list to keep track of visited nodes.
-        queue: list[tuple[NeuronNode, NeuronEdge]] = []  # Initialize a queue
+        # Second node is the first node's parent.
+        queue: list[tuple[NeuronNode, NeuronNode | None]] = []  # Initialize a queue
 
-        visited.add(self.root[0].id_)
-        queue.append(self.root)
+        visited.add(self.root.id_)
+        queue.append((self.root, None))
 
         zero_width = "\u200b"
 
@@ -456,20 +425,20 @@ class NeuronModel:
         depth_to_subgraph: dict[int, Digraph] = {}
         added_edges: set[tuple[str, str]] = set()
 
-        node_edge_tuples: list[tuple[NeuronNode, NeuronEdge]] = []
+        node_parent_tuples: list[tuple[NeuronNode, NeuronNode | None]] = []
 
         adjust: Callable[[float, float], float] = lambda x, y: (x - y) / (1 - y)
 
         while queue:
-            node, edge = queue.pop(0)
+            (node, parent) = queue.pop(0)
 
-            node_edge_tuples.append((node, edge))
+            node_parent_tuples.append((node, parent))
 
             for _token, neighbour in node.children.items():
-                new_node, _new_edge = neighbour
+                new_node = neighbour
                 if new_node.id_ not in visited:
                     visited.add(new_node.id_)
-                    queue.append(neighbour)
+                    queue.append((neighbour, node))
 
         net = Digraph(
             graph_attr={
@@ -481,7 +450,7 @@ class NeuronModel:
             node_attr={"fixedsize": "true", "width": "2", "height": "0.75"},
         )
 
-        for node, edge in node_edge_tuples:
+        for node, parent in node_parent_tuples:
             token = node.value.token
             depth = node.depth
 
@@ -536,8 +505,8 @@ class NeuronModel:
                 )
                 added_ids.add(graph_node_id)
 
-            if edge.parent is not None and edge.parent.id_ in visited and not edge.parent.value.ignore:
-                graph_parent_id = node_id_to_graph_id[edge.parent.id_]
+            if parent is not None and parent.id_ in visited and not parent.value.ignore:
+                graph_parent_id = node_id_to_graph_id[parent.id_]
                 edge_tuple = (graph_parent_id, graph_node_id)
                 if edge_tuple not in added_edges:
                     net.edge(*edge_tuple, penwidth="3", dir="back")  # type: ignore
@@ -550,13 +519,13 @@ class NeuronModel:
 
     def update_neuron_store(self, neuron_store: NeuronStore, layer_name: str, neuron_index: int) -> None:
         visited: set[int] = set()  # list to keep track of visited nodes.
-        queue: list[tuple[NeuronNode, NeuronEdge]] = []  # Initialize a queue
+        queue: list[NeuronNode] = []  # Initialize a queue
 
-        visited.add(self.trie_root[0].id_)
+        visited.add(self.trie_root.id_)
         queue.append(self.trie_root)
 
         while queue:
-            node, _ = queue.pop(0)
+            node = queue.pop(0)
 
             token = node.value.token
 
@@ -564,7 +533,7 @@ class NeuronModel:
                 neuron_store.add_neuron(node.value.activator, token, f"{layer_name}_{neuron_index}")
 
             for _token, neighbour in node.children.items():
-                new_node, _new_edge = neighbour
+                new_node = neighbour
                 if new_node.id_ not in visited:
                     visited.add(new_node.id_)
                     queue.append(neighbour)
