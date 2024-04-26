@@ -330,6 +330,7 @@ class NeuronModel:
                     node.children.pop(child_token)
 
             for _token, new_node in node.children.items():
+                assert new_node.id_ not in visited, "Temporary assertion to check if hypothesis holds"
                 if new_node.id_ not in visited:
                     visited.add(new_node.id_)
                     queue.append(new_node)
