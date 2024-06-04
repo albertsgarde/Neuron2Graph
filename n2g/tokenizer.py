@@ -19,7 +19,7 @@ class Tokenizer:
 
     def str_to_id(self, str_token: str) -> int:
         encoding = self._model.tokenizer.encode(str_token)
-        assert len(encoding) == 1, "given string should be tokenized to exactly one token"
+        assert len(encoding) == 1, f"given string '{str_token}' should be tokenized to exactly one token"
         return encoding[0]
 
     def id_to_str(self, token_id: int) -> str:
