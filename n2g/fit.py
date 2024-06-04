@@ -300,6 +300,9 @@ def augment_and_return(
             scale_factor=scale_factor,
             config=importance_config,
         )
+        for str_token, _ in tokens_and_activations:
+            # Asserts that the str_token maps to a single token
+            tokenizer.str_to_id(str_token)
         samples.append(Sample(importances_matrix, tokens_and_activations))
 
     return samples
