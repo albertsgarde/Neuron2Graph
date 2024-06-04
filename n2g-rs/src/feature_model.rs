@@ -29,6 +29,7 @@ impl Pattern {
     }
 }
 
+#[derive(Clone)]
 pub struct FeatureModelNode {
     end_node: Option<f32>,
     children: BTreeMap<CompactPatternToken, FeatureModelNode>,
@@ -43,6 +44,18 @@ impl FeatureModelNode {
             importance,
         }
     }
+
+    pub fn from_raw(
+        end_node: Option<f32>,
+        children: BTreeMap<CompactPatternToken, FeatureModelNode>,
+        importance: f32,
+    ) -> Self {
+        FeatureModelNode {
+            end_node,
+            children,
+            importance,
+        }
+    }
 }
 
 pub struct FeatureModel {
@@ -54,6 +67,10 @@ impl FeatureModel {
         FeatureModel {
             children: BTreeMap::new(),
         }
+    }
+
+    pub fn from_raw(nodes: BTreeMap<Token, FeatureModelNode>) -> FeatureModel {
+        FeatureModel { children: nodes }
     }
 
     pub fn from_patterns(patterns: impl IntoIterator<Item = Pattern>) -> FeatureModel {
@@ -82,7 +99,7 @@ impl FeatureModel {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct CompactFeatureModelNode {
     token: CompactPatternToken,
     end_node: Option<f32>,
@@ -251,6 +268,12 @@ impl From<&FeatureModel> for CompactFeatureModel {
             louds: Louds::from(bit_string.as_slice()),
             tokens,
         }
+    }
+}
+
+impl From<FeatureModel> for CompactFeatureModel {
+    fn from(trie: FeatureModel) -> Self {
+        Self::from(&trie)
     }
 }
 

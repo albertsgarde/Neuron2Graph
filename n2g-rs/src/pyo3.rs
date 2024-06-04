@@ -1,8 +1,9 @@
+use std::collections::BTreeMap;
+
 use pyo3::prelude::*;
-use tokenizers::Tokenizer;
 
 use crate::{
-    feature_model::{CompactFeatureModel, FeatureModel, Pattern},
+    feature_model::{CompactFeatureModel, FeatureModel, FeatureModelNode, Pattern},
     token::{CompactPatternToken, PatternToken, Token},
 };
 
@@ -12,6 +13,28 @@ fn token_from_i32(token: i32) -> Token {
             .try_into()
             .unwrap_or_else(|token| panic!("Token negative: {token}")),
     )
+}
+
+#[pyclass(name = "Token")]
+#[derive(Debug, Clone, Copy)]
+pub struct PyToken {
+    token: Token,
+}
+
+#[pymethods]
+impl PyToken {
+    #[staticmethod]
+    fn from_i32(token: i32) -> Self {
+        PyToken {
+            token: token_from_i32(token),
+        }
+    }
+}
+
+impl From<PyToken> for Token {
+    fn from(value: PyToken) -> Self {
+        value.token
+    }
 }
 
 #[pyclass(name = "PatternToken")]
@@ -74,6 +97,36 @@ impl PyPattern {
     }
 }
 
+#[pyclass(name = "ModelNode")]
+#[derive(Clone)]
+pub struct PyModelNode {
+    node: FeatureModelNode,
+}
+
+#[pymethods]
+impl PyModelNode {
+    #[staticmethod]
+    pub fn from_children(
+        children: Vec<(PyPatternToken, PyModelNode)>,
+        importance: f32,
+        end_node: Option<f32>,
+    ) -> Self {
+        let children: BTreeMap<CompactPatternToken, FeatureModelNode> = children
+            .into_iter()
+            .map(|(token, node)| (token.into(), node.into()))
+            .collect();
+        PyModelNode {
+            node: FeatureModelNode::from_raw(end_node, children, importance),
+        }
+    }
+}
+
+impl From<PyModelNode> for FeatureModelNode {
+    fn from(value: PyModelNode) -> Self {
+        value.node
+    }
+}
+
 #[pyclass(name = "FeatureModel")]
 pub struct PyFeatureModel {
     model: CompactFeatureModel,
@@ -85,6 +138,16 @@ impl PyFeatureModel {
     pub fn from_patterns(patterns: Vec<PyPattern>) -> Self {
         let patterns: Vec<Pattern> = patterns.into_iter().map(|pattern| pattern.into()).collect();
         let model = (&FeatureModel::from_patterns(patterns)).into();
+        PyFeatureModel { model }
+    }
+
+    #[staticmethod]
+    pub fn from_nodes(nodes: Vec<(PyToken, PyModelNode)>) -> Self {
+        let nodes: BTreeMap<Token, FeatureModelNode> = nodes
+            .into_iter()
+            .map(|(token, node)| (token.into(), node.into()))
+            .collect();
+        let model: CompactFeatureModel = FeatureModel::from_raw(nodes).into();
         PyFeatureModel { model }
     }
 
@@ -109,24 +172,15 @@ impl PyFeatureModel {
             context.iter().map(|&token| token_from_i32(token)),
         )
     }
-
-    pub fn graphviz(&self, tokenizer: &Tokenizer) -> String {
-        self.model.graphviz(|token| {
-            tokenizer.decode(&[token.0], false).unwrap_or_else(|err| {
-                format!(
-                    "Failed to decode token '{}' due to error '{}'.",
-                    token.0, err
-                )
-            })
-        })
-    }
 }
 
 /// A Python module implemented in Rust.
 #[pymodule]
-fn n2g_rs(_py: Python, m: &PyModule) -> PyResult<()> {
+fn n2g_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<PyToken>()?;
     m.add_class::<PyPatternToken>()?;
     m.add_class::<PyPattern>()?;
+    m.add_class::<PyModelNode>()?;
     m.add_class::<PyFeatureModel>()?;
     Ok(())
 }
