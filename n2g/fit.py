@@ -266,9 +266,9 @@ def augment_and_return(
 ) -> list[Sample]:
     samples: list[Sample] = []
     (
-        importances_matrix,
+        _importances_matrix,
         important_tokens,
-        tokens_and_activations,
+        _tokens_and_activations,
     ) = measure_importance(
         feature_activation,
         tokenizer,
