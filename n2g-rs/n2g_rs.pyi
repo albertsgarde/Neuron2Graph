@@ -1,3 +1,5 @@
+from typing import Callable
+
 class PatternToken:
     @staticmethod
     def ignore() -> "PatternToken":
@@ -44,10 +46,38 @@ class FeatureModel:
             patterns: The patterns to use.
         """
 
+    def __call__(self, tokens: list[list[int]]) -> list[list[float]]:
+        """
+        Predicts the activation for each token in each sample given the previous tokens as context.
+
+        Args:
+            tokens: The samples to predict activations for.
+        """
+
+    def forward(self, tokens: list[list[int]]) -> list[list[float]]:
+        """
+        Predicts the activation for each token in each sample given the previous tokens as context.
+
+        Args:
+            tokens: The samples to predict activations for.
+        """
+
+    def graphviz(self, token_to_str: Callable[[int], str]) -> str:
+        """
+        Returns a graphviz representation of the feature model.
+
+        Args:
+            token_to_str: A function that maps token ids to strings.
+        """
+
     def predict_activation(self, tokens: list[int]) -> float:
         """
         Predicts the activation of the first token in the list given the rest as context in reverse order
 
         Args:
             tokens: sample to predict activation for in reverse order.
+        """
+    def tokens(self) -> list[tuple[int, bool]]:
+        """
+        Returns the tokens in the feature model and whether they are activating.
         """

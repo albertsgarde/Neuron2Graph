@@ -172,6 +172,55 @@ impl PyFeatureModel {
             context.iter().map(|&token| token_from_i32(token)),
         )
     }
+
+    pub fn graphviz(&self, token_to_str: Bound<'_, PyAny>) -> String {
+        let decode = |Token(token): Token| -> String {
+            token_to_str
+                .call1((token,))
+                .unwrap_or_else(|err| {
+                    panic!("Failed to decode token '{token}' due to error '{err}'.",)
+                })
+                .extract()
+                .unwrap_or_else(|err| {
+                    panic!("Failed to extract token '{token}' due to error '{err}'.",)
+                })
+        };
+        self.model.graphviz_string(decode)
+    }
+
+    pub fn tokens(&self) -> Vec<(i32, bool)> {
+        self.model
+            .tokens()
+            .map(|(Token(token), activating)| {
+                (
+                    token.try_into().expect("Token greater than 2147483647."),
+                    activating,
+                )
+            })
+            .collect()
+    }
+
+    pub fn to_json(&self) -> String {
+        serde_json::to_string(&self.model).expect("Failed to serialize feature model to JSON.")
+    }
+
+    #[staticmethod]
+    pub fn from_json(json: &str) -> Self {
+        let model: CompactFeatureModel =
+            serde_json::from_str(json).expect("Failed to deserialize feature model from JSON.");
+        PyFeatureModel { model }
+    }
+
+    pub fn to_bin(&self) -> Vec<u8> {
+        postcard::to_allocvec(&self.model).expect("Failed to serialize feature model to binary.")
+    }
+
+    #[staticmethod]
+    pub fn from_bin(bin: &[u8]) -> Self {
+        let model: CompactFeatureModel =
+            postcard::from_bytes(bin).expect("Failed to deserialize feature model from binary.");
+        PyFeatureModel { model }
+    }
 }
 
 /// A Python module implemented in Rust.

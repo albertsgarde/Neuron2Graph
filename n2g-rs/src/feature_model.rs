@@ -173,6 +173,8 @@ impl CompactFeatureModel {
         self.tokens.get(node_num.0 as usize).copied()
     }
 
+    /// Predicts the activation for the given token given context.
+    /// Context should be given in reverse order.
     pub fn predict_activation(
         &self,
         activating_token: Token,
@@ -209,6 +211,9 @@ impl CompactFeatureModel {
         end_node.end_node
     }
 
+    /// Predicts the activations for the given tokens.
+    /// Each element of the outer output vector corresponds to one input sequence.
+    /// For each input sequence, the corresponding vector is the predicted activation on each token given the preceding tokens as context.
     pub fn predict_activations<I1, I2>(&self, tokens: I1) -> Vec<Vec<f32>>
     where
         I2: AsRef<[Token]>,
@@ -222,13 +227,25 @@ impl CompactFeatureModel {
                     .map(|i| {
                         let slice = &tokens[..i];
                         let (&activating, context) =
-                            slice.split_first().expect("Slice cannot be empty.");
-                        self.predict_activation(activating, context.iter().copied())
+                            slice.split_last().expect("Slice cannot be empty.");
+                        self.predict_activation(activating, context.iter().rev().copied())
                             .unwrap_or(0.)
                     })
                     .collect()
             })
             .collect()
+    }
+
+    pub fn tokens(&self) -> impl Iterator<Item = (Token, bool)> + '_ {
+        let num_activating = self.activating_nodes().count();
+        self.tokens
+            .iter()
+            .enumerate()
+            .skip(2)
+            .map(move |(i, node)| (node.token, i >= 2 + num_activating))
+            .filter_map(|(token, is_activating)| {
+                token.regular().map(|token| (token, is_activating))
+            })
     }
 }
 
