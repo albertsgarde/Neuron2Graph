@@ -97,7 +97,7 @@ impl PyPattern {
     }
 }
 
-#[pyclass(name = "ModelNode")]
+#[pyclass(name = "FeatureModelNode")]
 #[derive(Clone)]
 pub struct PyModelNode {
     node: FeatureModelNode,

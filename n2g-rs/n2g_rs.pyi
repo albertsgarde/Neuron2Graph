@@ -1,5 +1,15 @@
 from typing import Callable
 
+class Token:
+    @staticmethod
+    def from_i32(token: int) -> "Token":
+        """
+        Constructs a token from an integer.
+
+        Args:
+            token: The token to construct.
+        """
+
 class PatternToken:
     @staticmethod
     def ignore() -> "PatternToken":
@@ -34,6 +44,22 @@ class Pattern:
             activation: The predicted activation if this pattern matches.
         """
 
+class FeatureModelNode:
+    @staticmethod
+    def from_children(
+        children: list[tuple[PatternToken, "FeatureModelNode"]],
+        importance: float,
+        activation: float | None = None,
+    ) -> "FeatureModelNode":
+        """
+        Constructs a feature model node from a list of children.
+
+        Args:
+            children: The children of the node.
+            importance: The importance of the node.
+            activation: The activation of the node.
+        """
+
 class FeatureModel:
     @staticmethod
     def from_patterns(
@@ -44,6 +70,17 @@ class FeatureModel:
 
         Args:
             patterns: The patterns to use.
+        """
+
+    @staticmethod
+    def from_nodes(
+        nodes: list[tuple[Token, FeatureModelNode]],
+    ) -> "FeatureModel":
+        """
+        Constructs a feature model from a list of nodes.
+
+        Args:
+            nodes: The nodes to use.
         """
 
     def __call__(self, tokens: list[list[int]]) -> list[list[float]]:
