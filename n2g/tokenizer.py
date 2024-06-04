@@ -17,6 +17,14 @@ class Tokenizer:
     def tokenize(self, samples: list[str], prepend_bos: bool) -> Int[Tensor, "num_samples sample_length"]:
         return self._model.to_tokens(samples, prepend_bos=prepend_bos)
 
+    def str_to_id(self, str_token: str) -> int:
+        encoding = self._model.tokenizer.encode(str_token)
+        assert len(encoding) == 1, "given string should be tokenized to exactly one token"
+        return encoding[0]
+
+    def id_to_str(self, token_id: int) -> str:
+        return self._model.tokenizer.decode(token_id)
+
     def tokenize_with_str(self, sample: str, prepend_bos: bool) -> tuple[Int[Tensor, " sample_length"], list[str]]:
         tokens_all, str_tokens_list = self.batch_tokenize_with_str([sample], prepend_bos=prepend_bos)
         assert len(tokens_all) == 1, "tokens_all should have length 1"

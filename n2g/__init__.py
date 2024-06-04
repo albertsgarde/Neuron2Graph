@@ -1,3 +1,4 @@
+from .feature_model import FeatureModel
 from .fit import AugmentationConfig, FitConfig, ImportanceConfig, PruneConfig
 from .neuron_model import NeuronModel
 from .run import TrainConfig, feature_activation, run, run_layer
@@ -10,6 +11,7 @@ __all__ = [
     "run_layer",
     "Tokenizer",
     "NeuronModel",
+    "FeatureModel",
     "NeuronStats",
     "feature_activation",
     "FitConfig",

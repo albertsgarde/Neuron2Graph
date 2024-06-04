@@ -1,9 +1,15 @@
 from dataclasses import dataclass
 
-from n2g_rs import FeatureModel as RustFeatureModel, Pattern, PatternToken
+from n2g_rs import (
+    FeatureModel as RustFeatureModel,
+    FeatureModelNode as RustFeatureModelNode,
+    Pattern,
+    PatternToken,
+    Token,
+)
 
 from n2g import neuron_model
-from n2g.neuron_model import Element, Line, Sample
+from n2g.neuron_model import Element, Line, NeuronModel, NeuronNode, Sample
 from n2g.tokenizer import Tokenizer
 
 
@@ -41,6 +47,33 @@ def _model_from_samples(
     return _model_from_lines(tokenizer, lines)
 
 
+def _str_token_to_pattern_token(tokenizer: Tokenizer, str_token: str) -> PatternToken:
+    assert str_token != neuron_model.END_TOKEN
+    assert str_token != neuron_model.ROOT_TOKEN
+    if str_token == neuron_model.IGNORE_TOKEN:
+        return PatternToken.ignore()
+    return PatternToken.regular(tokenizer.str_to_id(str_token))
+
+
+def _str_token_to_token(tokenizer: Tokenizer, str_token: str) -> Token:
+    assert str_token != neuron_model.END_TOKEN
+    assert str_token != neuron_model.ROOT_TOKEN
+    assert str_token != neuron_model.IGNORE_TOKEN
+    return Token.from_i32(tokenizer.str_to_id(str_token))
+
+
+def _node_rust_to_py(tokenizer: Tokenizer, node: NeuronNode) -> RustFeatureModelNode:
+    children = [
+        (_str_token_to_pattern_token(tokenizer, str_token), _node_rust_to_py(tokenizer, child))
+        for str_token, child in node.children.items()
+        if str_token != neuron_model.END_TOKEN
+    ]
+    if node.value.is_end:
+        return RustFeatureModelNode.from_children(children, node.value.importance, node.value.activation)
+    else:
+        return RustFeatureModelNode.from_children(children, node.value.importance)
+
+
 @dataclass
 class FeatureModel:
     _model: RustFeatureModel
@@ -53,6 +86,15 @@ class FeatureModel:
         return FeatureModel(
             _model_from_samples(tokenizer, samples, importance_threshold, activation_threshold), tokenizer
         )
+
+    @staticmethod
+    def from_model(tokenizer: Tokenizer, model: NeuronModel) -> "FeatureModel":
+        trie_root = model.trie_root
+        nodes = [
+            (_str_token_to_token(tokenizer, str_token), _node_rust_to_py(tokenizer, child))
+            for str_token, child in trie_root.children.items()
+        ]
+        return FeatureModel(RustFeatureModel.from_nodes(nodes), tokenizer)
 
     def __call__(self, tokens_arr: list[list[str]]) -> list[list[float]]:
         return self.forward(tokens_arr)
