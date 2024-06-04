@@ -110,3 +110,17 @@ class FeatureModel:
 
     def tokens(self) -> list[tuple[str, bool]]:
         return [(self._tokenizer.id_to_str(token), activating) for token, activating in self._model.tokens()]
+
+    def to_json(self) -> str:
+        return self._model.to_json()
+
+    @staticmethod
+    def from_json(tokenizer: Tokenizer, json_str: str) -> "FeatureModel":
+        return FeatureModel(RustFeatureModel.from_json(json_str), tokenizer)
+
+    def to_bytes(self) -> bytes:
+        return self._model.to_bin()
+
+    @staticmethod
+    def from_bytes(tokenizer: Tokenizer, bytes: bytes) -> "FeatureModel":
+        return FeatureModel(RustFeatureModel.from_bin(bytes), tokenizer)

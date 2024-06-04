@@ -118,3 +118,31 @@ class FeatureModel:
         """
         Returns the tokens in the feature model and whether they are activating.
         """
+
+    def to_json(self) -> str:
+        """
+        Returns a JSON representation of the feature model.
+        """
+
+    @staticmethod
+    def from_json(json: str) -> "FeatureModel":
+        """
+        Constructs a feature model from a JSON representation.
+
+        Args:
+            json: The JSON representation to construct from.
+        """
+
+    def to_bin(self) -> bytes:
+        """
+        Returns a binary representation of the feature model.
+        """
+
+    @staticmethod
+    def from_bin(bin: bytes) -> "FeatureModel":
+        """
+        Constructs a feature model from a binary representation.
+
+        Args:
+            bin: The binary representation to construct from.
+        """
