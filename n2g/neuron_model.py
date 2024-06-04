@@ -353,7 +353,7 @@ class NeuronModel:
         activations = [0.0]
 
         for i, token in enumerate(reversed(tokens)):
-            token = self._normalise(token)
+            token = NeuronModel._normalise(token)
 
             current_node = current_tuple
 
