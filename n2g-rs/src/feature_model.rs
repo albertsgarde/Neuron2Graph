@@ -247,6 +247,17 @@ impl CompactFeatureModel {
                 token.regular().map(|token| (token, is_activating))
             })
     }
+
+    pub fn is_trie_equal(&self, other: &CompactFeatureModel) -> bool {
+        self.nodes().zip(other.nodes()).all(
+            |((self_louds_num, self_node), (other_louds_num, other_node))| {
+                self_louds_num == other_louds_num
+                    && self_node.end_node.is_some() == other_node.end_node.is_some()
+                    && self_node.importance == other_node.importance
+                    && self_node.token == other_node.token
+            },
+        )
+    }
 }
 
 impl From<&FeatureModel> for CompactFeatureModel {
@@ -296,6 +307,7 @@ impl From<FeatureModel> for CompactFeatureModel {
 
 #[cfg(test)]
 mod test {
+
     use crate::token::PatternToken;
 
     use super::*;

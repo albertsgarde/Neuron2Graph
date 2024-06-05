@@ -200,6 +200,10 @@ impl PyFeatureModel {
             .collect()
     }
 
+    pub fn is_trie_equal(&self, other: &PyFeatureModel) -> bool {
+        self.model.is_trie_equal(&other.model)
+    }
+
     pub fn to_json(&self) -> String {
         serde_json::to_string(&self.model).expect("Failed to serialize feature model to JSON.")
     }
