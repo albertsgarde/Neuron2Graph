@@ -128,6 +128,7 @@ impl From<PyModelNode> for FeatureModelNode {
 }
 
 #[pyclass(name = "FeatureModel")]
+#[derive(Clone)]
 pub struct PyFeatureModel {
     model: CompactFeatureModel,
 }
@@ -224,6 +225,23 @@ impl PyFeatureModel {
         let model: CompactFeatureModel =
             postcard::from_bytes(bin).expect("Failed to deserialize feature model from binary.");
         PyFeatureModel { model }
+    }
+
+    #[staticmethod]
+    pub fn list_to_bin(models: Vec<PyFeatureModel>) -> Vec<u8> {
+        let models: Vec<CompactFeatureModel> =
+            models.into_iter().map(|model| model.model).collect();
+        postcard::to_allocvec(&models).expect("Failed to serialize feature models to binary.")
+    }
+
+    #[staticmethod]
+    pub fn list_from_bin(bin: &[u8]) -> Vec<PyFeatureModel> {
+        let models: Vec<CompactFeatureModel> =
+            postcard::from_bytes(bin).expect("Failed to deserialize feature models from binary.");
+        models
+            .into_iter()
+            .map(|model| PyFeatureModel { model })
+            .collect()
     }
 }
 

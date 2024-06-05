@@ -146,3 +146,21 @@ class FeatureModel:
         Args:
             bin: The binary representation to construct from.
         """
+
+    @staticmethod
+    def list_to_bin(models: list["FeatureModel"]) -> bytes:
+        """
+        Returns a binary representation of a list of feature models.
+
+        Args:
+            models: The models to convert.
+        """
+
+    @staticmethod
+    def list_from_bin(bin: bytes) -> list["FeatureModel"]:
+        """
+        Constructs a list of feature models from a binary representation.
+
+        Args:
+            bin: The binary representation to construct from.
+        """
