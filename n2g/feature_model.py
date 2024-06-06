@@ -119,8 +119,16 @@ class FeatureModel:
         return FeatureModel(RustFeatureModel.from_json(json_str), tokenizer)
 
     def to_bytes(self) -> bytes:
-        return self._model.to_bin()
+        return bytes(self._model.to_bin())
 
     @staticmethod
     def from_bytes(tokenizer: Tokenizer, bytes: bytes) -> "FeatureModel":
         return FeatureModel(RustFeatureModel.from_bin(bytes), tokenizer)
+
+    @staticmethod
+    def list_to_bin(models: list["FeatureModel"]) -> bytes:
+        return bytes(RustFeatureModel.list_to_bin([model._model for model in models]))
+
+    @staticmethod
+    def list_from_bin(tokenizer: Tokenizer, bytes: bytes) -> list["FeatureModel"]:
+        return RustFeatureModel.list_from_bin(bytes)
