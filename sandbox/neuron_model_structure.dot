@@ -1,0 +1,35 @@
+digraph main {
+    rankdir = LR;
+    node [fontname = "Courier New";];
+    graphviz [label = "graphviz";];
+    _clamp [label = "_clamp";];
+    update_neuron_store [label = "update_neuron_store";];
+    forward [label = "forward";];
+    _search [label = "_search";];
+    fit [label = "fit";];
+    _merge_ignores [label = "_merge_ignores";];
+    _normalise [label = "_normalise";];
+    _add [label = "_add";];
+    _make_line [label = "_make_line";];
+    _initialize_index_sets [label = "_initialize_index_sets";];
+    
+    _initialize_index_sets -> fit;
+    _make_line -> fit;
+    _add -> fit;
+    _merge_ignores -> fit;
+    
+    _clamp -> graphviz;
+    
+    _search -> forward;
+    
+    _normalise -> _search;
+    
+    _add -> _merge_ignores;
+    
+    _normalise -> _add;
+    
+    
+    # training_samples.py depends on nothing
+    
+    # word_tokenizer.py depends on nothing
+}
