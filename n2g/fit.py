@@ -222,7 +222,7 @@ def measure_importance(
     initial_max: float = typing.cast(float, unmasked_activations[initial_argmax].item())
 
     tokens_and_activations: List[Tuple[str, float]] = [
-        (str_token, round(activation.item() * scale_factor / max_activation, 3))
+        (str_token, round(activation.item() * scale_factor / (max_activation if max_activation != 0.0 else .0001), 3))
         for str_token, activation in zip(str_tokens, unmasked_activations)
     ]
     important_tokens: List[str] = []
