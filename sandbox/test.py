@@ -3,6 +3,7 @@ import os
 import pickle
 from pathlib import Path
 from typing import Dict
+import time
 
 import torch
 
@@ -60,6 +61,8 @@ def main() -> None:
     # ================ Run ================
     # Run training for the specified layers and neurons
 
+
+    n2g_start_time = time.time()
     neuron_models, _neuron_store, all_stats = n2g.run(
         model_name,
         layer_indices,
@@ -72,6 +75,8 @@ def main() -> None:
         n2g.TrainConfig(),
         device,
     )
+    n2g_end_time = time.time()
+    print(f"N2G time: {n2g_end_time - n2g_start_time} seconds")
 
     stats.dump_neuron_stats(stats_path, all_stats)
 
@@ -105,7 +110,6 @@ def main() -> None:
     assert baseline_stats != {}, "No stats found. Make sure to run a baseline first."
 
     # Compare stats
-    """
     assert (
         all_stats.keys() == baseline_stats.keys()
     ), f"Layer indices don't match. stats {all_stats.keys()} compare_stats {baseline_stats.keys()}"
@@ -129,9 +133,7 @@ def main() -> None:
             )
 
     # Load baseline graphs by loading all existing graphs in the baseline graph directory
-    """
     baseline_graph_dir = repo_root / "output" / "solu-2l-baseline" / "graphs"
-    """
     baseline_graphs: dict[int, dict[int, str]] = {}
     
     for graph_file in baseline_graph_dir.iterdir():
@@ -159,7 +161,6 @@ def main() -> None:
             assert (
                 neuron_model.graphviz().source == baseline_neuron_graph
             ), f"Graphs don't match for l{layer_index}n{neuron_index}\n"
-    """
 
     total_model_file_size = 0
     total_baseline_model_file_size = 0
