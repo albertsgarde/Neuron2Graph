@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 from n2g_rs import (
@@ -115,20 +117,20 @@ class FeatureModel:
         return self._model.to_json()
 
     @staticmethod
-    def from_json(tokenizer: Tokenizer, json_str: str) -> "FeatureModel":
+    def from_json(tokenizer: Tokenizer, json_str: str) -> FeatureModel:
         return FeatureModel(RustFeatureModel.from_json(json_str), tokenizer)
 
     def to_bytes(self) -> bytes:
         return bytes(self._model.to_bin())
 
     @staticmethod
-    def from_bytes(tokenizer: Tokenizer, bytes: bytes) -> "FeatureModel":
+    def from_bytes(tokenizer: Tokenizer, bytes: bytes) -> FeatureModel:
         return FeatureModel(RustFeatureModel.from_bin(bytes), tokenizer)
 
     @staticmethod
-    def list_to_bin(models: list["FeatureModel"]) -> bytes:
-        return bytes(RustFeatureModel.list_to_bin([model._model for model in models]))
+    def list_to_bin(models: list[FeatureModel | None]) -> bytes:
+        return bytes(RustFeatureModel.list_to_bin([(model._model if model else None) for model in models]))
 
     @staticmethod
-    def list_from_bin(tokenizer: Tokenizer, bytes: bytes) -> list["FeatureModel"]:
-        return RustFeatureModel.list_from_bin(bytes)
+    def list_from_bin(tokenizer: Tokenizer, bytes: bytes) -> list[FeatureModel | None]:
+        return [FeatureModel(model, tokenizer) if model else None for model in RustFeatureModel.list_from_bin(bytes)]

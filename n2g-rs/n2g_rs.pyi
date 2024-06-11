@@ -148,7 +148,7 @@ class FeatureModel:
         """
 
     @staticmethod
-    def list_to_bin(models: list["FeatureModel"]) -> bytes:
+    def list_to_bin(models: list["FeatureModel" | None]) -> bytes:
         """
         Returns a binary representation of a list of feature models.
 
@@ -157,7 +157,7 @@ class FeatureModel:
         """
 
     @staticmethod
-    def list_from_bin(bin: bytes) -> list["FeatureModel"]:
+    def list_from_bin(bin: bytes) -> list["FeatureModel" | None]:
         """
         Constructs a list of feature models from a binary representation.
 

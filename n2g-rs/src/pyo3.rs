@@ -228,19 +228,21 @@ impl PyFeatureModel {
     }
 
     #[staticmethod]
-    pub fn list_to_bin(models: Vec<PyFeatureModel>) -> Vec<u8> {
-        let models: Vec<CompactFeatureModel> =
-            models.into_iter().map(|model| model.model).collect();
+    pub fn list_to_bin(models: Vec<Option<PyFeatureModel>>) -> Vec<u8> {
+        let models: Vec<Option<CompactFeatureModel>> = models
+            .into_iter()
+            .map(|model| model.map(|model| model.model))
+            .collect();
         postcard::to_allocvec(&models).expect("Failed to serialize feature models to binary.")
     }
 
     #[staticmethod]
-    pub fn list_from_bin(bin: &[u8]) -> Vec<PyFeatureModel> {
-        let models: Vec<CompactFeatureModel> =
+    pub fn list_from_bin(bin: &[u8]) -> Vec<Option<PyFeatureModel>> {
+        let models: Vec<Option<CompactFeatureModel>> =
             postcard::from_bytes(bin).expect("Failed to deserialize feature models from binary.");
         models
             .into_iter()
-            .map(|model| PyFeatureModel { model })
+            .map(|model| model.map(|model| PyFeatureModel { model }))
             .collect()
     }
 }
