@@ -58,10 +58,6 @@ impl PatternToken {
             PatternToken::Ignore => false,
         }
     }
-
-    pub const fn is_ignore(self) -> bool {
-        !self.is_regular()
-    }
 }
 
 impl PartialEq<CompactPatternToken> for PatternToken {
