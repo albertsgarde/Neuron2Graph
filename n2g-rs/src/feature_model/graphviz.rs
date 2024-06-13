@@ -107,8 +107,6 @@ impl FeatureGraphNode {
         model: &CompactFeatureModel,
         louds_num: LoudsNodeNum,
     ) -> impl Iterator<Item = (Token, FeatureGraphNode)> + '_ {
-        let node = model.get_node(louds_num).expect("Invalid LOUDS number.");
-        assert!(node.token.unpack().is_ignore());
         model
             .children(louds_num)
             .flat_map(|(token, child_louds_num)| match token.unpack() {
