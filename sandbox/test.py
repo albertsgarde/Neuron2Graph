@@ -61,7 +61,6 @@ def main() -> None:
     # ================ Run ================
     # Run training for the specified layers and neurons
 
-
     n2g_start_time = time.time()
     neuron_models, _neuron_store, all_stats = n2g.run(
         model_name,
@@ -135,7 +134,7 @@ def main() -> None:
     # Load baseline graphs by loading all existing graphs in the baseline graph directory
     baseline_graph_dir = repo_root / "output" / "solu-2l-baseline" / "graphs"
     baseline_graphs: dict[int, dict[int, str]] = {}
-    
+
     for graph_file in baseline_graph_dir.iterdir():
         if graph_file.suffix == ".dot":
             with open(graph_file, "r") as f:

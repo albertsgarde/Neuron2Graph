@@ -19,7 +19,9 @@ def evaluate(
     base_max_act: float,
     test_samples: List[str],
     fire_threshold: float,
-) -> NeuronStats:
+) -> tuple[
+    NeuronStats, Float[np.ndarray, " num_samples*sample_length"], Float[np.ndarray, " num_samples*sample_length"]
+]:
     # Prepending BOS is unnecessary since they are already prepended.
     test_tokens: Int[Tensor, "num_samples sample_length"]
     test_str_tokens: list[list[str]]
@@ -44,4 +46,4 @@ def evaluate(
     firings: Bool[NDArray, " num_samples*sample_length"] = (activations >= fire_threshold).ravel()
     pred_firings: Bool[NDArray, " num_samples*sample_length"] = (pred_activations >= fire_threshold).ravel()
 
-    return NeuronStats.from_firings(firings, pred_firings)
+    return NeuronStats.from_firings(firings, pred_firings), activations.ravel(), pred_activations.ravel()
