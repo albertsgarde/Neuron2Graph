@@ -26,6 +26,9 @@ def evaluate(
     test_tokens: Int[Tensor, "num_samples sample_length"]
     test_str_tokens: list[list[str]]
     test_tokens, test_str_tokens = tokenizer.batch_tokenize_with_str(test_samples, prepend_bos=False)
+    if test_tokens.shape[1] > 256:
+        test_tokens = test_tokens[:, :256]
+        test_str_tokens = [sample[:256] for sample in test_str_tokens]
 
     pred_activations: Float[NDArray, "num_samples sample_length"] = np.full(test_tokens.shape, float("nan"))
 
