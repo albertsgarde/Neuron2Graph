@@ -91,6 +91,11 @@ class FeatureModel:
             tokens: The samples to predict activations for.
         """
 
+    def num_nodes(self) -> int:
+        """
+        Returns the number of nodes in the feature model.
+        """
+
     def forward(self, tokens: list[list[int]]) -> list[list[float]]:
         """
         Predicts the activation for each token in each sample given the previous tokens as context.

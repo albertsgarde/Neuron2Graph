@@ -159,6 +159,11 @@ impl CompactFeatureModel {
             })
     }
 
+    pub fn num_nodes(&self) -> usize {
+        assert!(self.tokens.len() >= 2, "Model must have at least 2 nodes.");
+        self.tokens.len() - 2
+    }
+
     fn get_node(&self, node_num: LoudsNodeNum) -> Option<CompactFeatureModelNode> {
         assert_ne!(
             node_num,

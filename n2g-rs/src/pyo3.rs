@@ -166,6 +166,10 @@ impl PyFeatureModel {
             }))
     }
 
+    pub fn num_nodes(&self) -> usize {
+        self.model.num_nodes()
+    }
+
     pub fn predict_activation(&self, tokens: Vec<i32>) -> Option<f32> {
         let (&activating, context) = tokens.split_first().unwrap();
         self.model.predict_activation(

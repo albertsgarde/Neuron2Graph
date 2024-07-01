@@ -107,6 +107,9 @@ class FeatureModel:
     def forward_tokens(self, tokens_arr: list[list[int]]) -> list[list[float]]:
         return self._model.forward(tokens_arr)
 
+    def num_nodes(self) -> int:
+        return self._model.num_nodes()
+
     def graphviz(self) -> str:
         return self._model.graphviz(lambda token: self._tokenizer.id_to_str(token))
 
