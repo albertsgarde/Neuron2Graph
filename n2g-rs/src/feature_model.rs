@@ -164,6 +164,14 @@ impl CompactFeatureModel {
         self.tokens.len() - 2
     }
 
+    pub fn num_activating(&self) -> usize {
+        self.activating_nodes().count()
+    }
+
+    pub fn num_important(&self) -> usize {
+        self.num_nodes() - self.num_activating()
+    }
+
     fn get_node(&self, node_num: LoudsNodeNum) -> Option<CompactFeatureModelNode> {
         assert_ne!(
             node_num,

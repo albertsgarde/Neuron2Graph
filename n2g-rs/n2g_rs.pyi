@@ -96,6 +96,16 @@ class FeatureModel:
         Returns the number of nodes in the feature model.
         """
 
+    def num_activating(self) -> int:
+        """
+        Returns the number of activating nodes in the feature model.
+        """
+
+    def num_important(self) -> int:
+        """
+        Returns the number of important nodes in the feature model.
+        """
+
     def forward(self, tokens: list[list[int]]) -> list[list[float]]:
         """
         Predicts the activation for each token in each sample given the previous tokens as context.

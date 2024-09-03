@@ -110,6 +110,12 @@ class FeatureModel:
     def num_nodes(self) -> int:
         return self._model.num_nodes()
 
+    def num_activating(self) -> int:
+        return self._model.num_activating()
+
+    def num_important(self) -> int:
+        return self._model.num_important()
+
     def graphviz(self) -> str:
         return self._model.graphviz(lambda token: self._tokenizer.id_to_str(token))
 
