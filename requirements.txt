@@ -1,0 +1,10 @@
+torch ~= 2.4.1
+maturin ~= 1.7.1
+numpy ~= 2.1.1
+jaxtyping ~= 0.2.34
+scikit-learn ~= 1.5.1
+transformer-lens ~= 2.4.0
+transformers ~= 4.44.2
+graphviz ~= 0.20.3
+pydantic ~= 2.8.2
+datasets ~= 2.21.0
