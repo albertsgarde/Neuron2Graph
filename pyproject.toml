@@ -6,7 +6,10 @@ readme = "README.md"
 requires-python = "~=3.9"
 license = { file = "LICENSE" }
 urls = { repository = "https://github.com/apartresearch/Neuron2Graph" }
-dependencies = []
+dynamic = ["dependencies"]
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
 
 [build-system]
 requires = ["setuptools", "wheel"]

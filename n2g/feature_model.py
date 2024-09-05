@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 from n2g_rs import (
@@ -105,8 +107,39 @@ class FeatureModel:
     def forward_tokens(self, tokens_arr: list[list[int]]) -> list[list[float]]:
         return self._model.forward(tokens_arr)
 
+    def num_nodes(self) -> int:
+        return self._model.num_nodes()
+
+    def num_activating(self) -> int:
+        return self._model.num_activating()
+
+    def num_important(self) -> int:
+        return self._model.num_important()
+
     def graphviz(self) -> str:
         return self._model.graphviz(lambda token: self._tokenizer.id_to_str(token))
 
     def tokens(self) -> list[tuple[str, bool]]:
         return [(self._tokenizer.id_to_str(token), activating) for token, activating in self._model.tokens()]
+
+    def to_json(self) -> str:
+        return self._model.to_json()
+
+    @staticmethod
+    def from_json(tokenizer: Tokenizer, json_str: str) -> FeatureModel:
+        return FeatureModel(RustFeatureModel.from_json(json_str), tokenizer)
+
+    def to_bytes(self) -> bytes:
+        return bytes(self._model.to_bin())
+
+    @staticmethod
+    def from_bytes(tokenizer: Tokenizer, bytes: bytes) -> FeatureModel:
+        return FeatureModel(RustFeatureModel.from_bin(bytes), tokenizer)
+
+    @staticmethod
+    def list_to_bin(models: list[FeatureModel | None]) -> bytes:
+        return bytes(RustFeatureModel.list_to_bin([(model._model if model else None) for model in models]))
+
+    @staticmethod
+    def list_from_bin(tokenizer: Tokenizer, bytes: bytes) -> list[FeatureModel | None]:
+        return [FeatureModel(model, tokenizer) if model else None for model in RustFeatureModel.list_from_bin(bytes)]

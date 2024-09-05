@@ -1,5 +1,6 @@
 from typing import Callable, List, Tuple
 
+import numpy as np
 from jaxtyping import Float, Int
 from torch import Tensor
 
@@ -22,7 +23,12 @@ def train_and_eval(
     base_max_activation: float,
     fire_threshold: float,
     fit_config: FitConfig,
-) -> Tuple[NeuronModel, NeuronStats]:
+) -> Tuple[
+    NeuronModel,
+    NeuronStats,
+    Float[np.ndarray, " num_samples*sample_length"],
+    Float[np.ndarray, " num_samples*sample_length"],
+]:
     neuron_model = fit.fit_neuron_model(
         feature_activation,
         tokenizer,
@@ -34,7 +40,7 @@ def train_and_eval(
 
     print("Fitted model", flush=True)
 
-    stats = evaluate.evaluate(
+    stats, activations, pred_activations = evaluate.evaluate(
         feature_activation,
         tokenizer,
         neuron_model,
@@ -43,4 +49,4 @@ def train_and_eval(
         fire_threshold,
     )
 
-    return neuron_model, stats
+    return neuron_model, stats, activations, pred_activations

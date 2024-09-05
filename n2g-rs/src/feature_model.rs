@@ -159,6 +159,19 @@ impl CompactFeatureModel {
             })
     }
 
+    pub fn num_nodes(&self) -> usize {
+        assert!(self.tokens.len() >= 2, "Model must have at least 2 nodes.");
+        self.tokens.len() - 2
+    }
+
+    pub fn num_activating(&self) -> usize {
+        self.activating_nodes().count()
+    }
+
+    pub fn num_important(&self) -> usize {
+        self.num_nodes() - self.num_activating()
+    }
+
     fn get_node(&self, node_num: LoudsNodeNum) -> Option<CompactFeatureModelNode> {
         assert_ne!(
             node_num,
@@ -247,6 +260,17 @@ impl CompactFeatureModel {
                 token.regular().map(|token| (token, is_activating))
             })
     }
+
+    pub fn is_trie_equal(&self, other: &CompactFeatureModel) -> bool {
+        self.nodes().zip(other.nodes()).all(
+            |((self_louds_num, self_node), (other_louds_num, other_node))| {
+                self_louds_num == other_louds_num
+                    && self_node.end_node.is_some() == other_node.end_node.is_some()
+                    && self_node.importance == other_node.importance
+                    && self_node.token == other_node.token
+            },
+        )
+    }
 }
 
 impl From<&FeatureModel> for CompactFeatureModel {
@@ -296,6 +320,7 @@ impl From<FeatureModel> for CompactFeatureModel {
 
 #[cfg(test)]
 mod test {
+
     use crate::token::PatternToken;
 
     use super::*;

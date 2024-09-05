@@ -238,13 +238,7 @@ class NeuronModel:
 
     @staticmethod
     def _normalise(token: str) -> str:
-        normalised_token = token.lower() if token.istitle() and len(token) > 1 else token
-        normalised_token = (
-            normalised_token.strip()
-            if len(normalised_token) > 1 and any(c.isalpha() for c in normalised_token)
-            else normalised_token
-        )
-        return normalised_token
+        return token
 
     def _add(
         self,

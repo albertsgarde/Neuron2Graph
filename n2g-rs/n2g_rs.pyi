@@ -91,6 +91,21 @@ class FeatureModel:
             tokens: The samples to predict activations for.
         """
 
+    def num_nodes(self) -> int:
+        """
+        Returns the number of nodes in the feature model.
+        """
+
+    def num_activating(self) -> int:
+        """
+        Returns the number of activating nodes in the feature model.
+        """
+
+    def num_important(self) -> int:
+        """
+        Returns the number of important nodes in the feature model.
+        """
+
     def forward(self, tokens: list[list[int]]) -> list[list[float]]:
         """
         Predicts the activation for each token in each sample given the previous tokens as context.
@@ -117,4 +132,50 @@ class FeatureModel:
     def tokens(self) -> list[tuple[int, bool]]:
         """
         Returns the tokens in the feature model and whether they are activating.
+        """
+
+    def to_json(self) -> str:
+        """
+        Returns a JSON representation of the feature model.
+        """
+
+    @staticmethod
+    def from_json(json: str) -> "FeatureModel":
+        """
+        Constructs a feature model from a JSON representation.
+
+        Args:
+            json: The JSON representation to construct from.
+        """
+
+    def to_bin(self) -> bytes:
+        """
+        Returns a binary representation of the feature model.
+        """
+
+    @staticmethod
+    def from_bin(bin: bytes) -> "FeatureModel":
+        """
+        Constructs a feature model from a binary representation.
+
+        Args:
+            bin: The binary representation to construct from.
+        """
+
+    @staticmethod
+    def list_to_bin(models: list["FeatureModel" | None]) -> bytes:
+        """
+        Returns a binary representation of a list of feature models.
+
+        Args:
+            models: The models to convert.
+        """
+
+    @staticmethod
+    def list_from_bin(bin: bytes) -> list["FeatureModel" | None]:
+        """
+        Constructs a list of feature models from a binary representation.
+
+        Args:
+            bin: The binary representation to construct from.
         """

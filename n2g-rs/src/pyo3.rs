@@ -128,6 +128,7 @@ impl From<PyModelNode> for FeatureModelNode {
 }
 
 #[pyclass(name = "FeatureModel")]
+#[derive(Clone)]
 pub struct PyFeatureModel {
     model: CompactFeatureModel,
 }
@@ -165,6 +166,18 @@ impl PyFeatureModel {
             }))
     }
 
+    pub fn num_nodes(&self) -> usize {
+        self.model.num_nodes()
+    }
+
+    pub fn num_activating(&self) -> usize {
+        self.model.num_activating()
+    }
+
+    pub fn num_important(&self) -> usize {
+        self.model.num_important()
+    }
+
     pub fn predict_activation(&self, tokens: Vec<i32>) -> Option<f32> {
         let (&activating, context) = tokens.split_first().unwrap();
         self.model.predict_activation(
@@ -200,6 +213,10 @@ impl PyFeatureModel {
             .collect()
     }
 
+    pub fn is_trie_equal(&self, other: &PyFeatureModel) -> bool {
+        self.model.is_trie_equal(&other.model)
+    }
+
     pub fn to_json(&self) -> String {
         serde_json::to_string(&self.model).expect("Failed to serialize feature model to JSON.")
     }
@@ -220,6 +237,25 @@ impl PyFeatureModel {
         let model: CompactFeatureModel =
             postcard::from_bytes(bin).expect("Failed to deserialize feature model from binary.");
         PyFeatureModel { model }
+    }
+
+    #[staticmethod]
+    pub fn list_to_bin(models: Vec<Option<PyFeatureModel>>) -> Vec<u8> {
+        let models: Vec<Option<CompactFeatureModel>> = models
+            .into_iter()
+            .map(|model| model.map(|model| model.model))
+            .collect();
+        postcard::to_allocvec(&models).expect("Failed to serialize feature models to binary.")
+    }
+
+    #[staticmethod]
+    pub fn list_from_bin(bin: &[u8]) -> Vec<Option<PyFeatureModel>> {
+        let models: Vec<Option<CompactFeatureModel>> =
+            postcard::from_bytes(bin).expect("Failed to deserialize feature models from binary.");
+        models
+            .into_iter()
+            .map(|model| model.map(|model| PyFeatureModel { model }))
+            .collect()
     }
 }
 

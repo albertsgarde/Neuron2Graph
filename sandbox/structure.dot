@@ -1,0 +1,47 @@
+digraph main {
+    rankdir=BT
+    node [fontname="Courier New" ];
+    script [label="script.py"];
+    augmenter [label="augmenter.py"];
+    evaluate [label="evaluate.py"];
+    fit [label="fit.py"];
+    neuron_model [label="neuron_model.py"];
+    neuron_store [label="neuron_store.py"];
+    run [label="run.py"];
+    stats [label="stats.py"];
+    train_and_eval [label="train_and_eval.py"];
+    training_samples [label="training_samples.py"];
+    word_tokenizer [label="word_tokenizer.py"];
+    
+    augmenter -> script;
+    word_tokenizer -> script;
+    run -> script;
+    stats -> script;
+
+    word_tokenizer -> augmenter;
+
+    neuron_model -> evaluate;
+
+    augmenter -> fit;
+    word_tokenizer -> fit;
+    neuron_model -> fit;
+
+    neuron_store -> neuron_model;
+
+    # neuron_store.py depends on nothing
+
+    neuron_store -> run;
+    training_samples -> run;
+    train_and_eval -> run;
+
+    # stats.py depends on nothing
+
+    augmenter -> train_and_eval;
+    evaluate -> train_and_eval;
+    fit -> train_and_eval;
+    neuron_store -> train_and_eval;
+
+    # training_samples.py depends on nothing
+
+    # word_tokenizer.py depends on nothing
+}

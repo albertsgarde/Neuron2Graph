@@ -18,14 +18,11 @@ fn index_to_vertex(index: u64) -> Vertex {
     Vertex::N(NodeId(Id::Plain(format!("{index}")), None))
 }
 
-fn attribute(key: impl AsRef<str>, value: impl AsRef<str>) -> Attribute {
-    let value = value.as_ref();
-    let value_id = if value.contains('"') {
-        Id::Escaped(value.to_string())
-    } else {
-        Id::Plain(value.to_string())
-    };
-    Attribute(Id::Plain(key.as_ref().to_string()), value_id)
+fn attribute(key: impl Into<String>, value: impl Into<String>) -> Attribute {
+    let value: String = value.into();
+    let value_string = value.replace('"', "\\\"");
+    let value_id = Id::Plain(format!("\"{value_string}\""));
+    Attribute(Id::Plain(key.into()), value_id)
 }
 
 fn index_pair_to_dot_edge(index1: u64, index2: u64) -> Edge {
@@ -35,9 +32,9 @@ fn index_pair_to_dot_edge(index1: u64, index2: u64) -> Edge {
 fn importance_to_color(importance: f32, activating: bool) -> String {
     let importance = ((1. - importance) * 255.0) as u8;
     if activating {
-        format!("\"#ff{importance:02x}{importance:02x}\"")
+        format!("#ff{importance:02x}{importance:02x}")
     } else {
-        format!("\"#{importance:02x}{importance:02x}ff\"")
+        format!("#{importance:02x}{importance:02x}ff")
     }
 }
 
@@ -107,8 +104,6 @@ impl FeatureGraphNode {
         model: &CompactFeatureModel,
         louds_num: LoudsNodeNum,
     ) -> impl Iterator<Item = (Token, FeatureGraphNode)> + '_ {
-        let node = model.get_node(louds_num).expect("Invalid LOUDS number.");
-        assert!(node.token.unpack().is_ignore());
         model
             .children(louds_num)
             .flat_map(|(token, child_louds_num)| match token.unpack() {
@@ -191,7 +186,7 @@ impl CompactFeatureModel {
             attribute("fixedsize", "true"),
             attribute("height", "0.75"),
             attribute("width", "2"),
-            attribute("style", "\"filled,solid\""),
+            attribute("style", "filled,solid"),
             attribute("shape", "box"),
             attribute("fontcolor", "black"),
             attribute("fontsize", "25"),

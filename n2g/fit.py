@@ -222,7 +222,7 @@ def measure_importance(
     initial_max: float = typing.cast(float, unmasked_activations[initial_argmax].item())
 
     tokens_and_activations: List[Tuple[str, float]] = [
-        (str_token, round(activation.item() * scale_factor / max_activation, 3))
+        (str_token, round(activation.item() * scale_factor / (max_activation if max_activation != 0.0 else 0.0001), 3))
         for str_token, activation in zip(str_tokens, unmasked_activations)
     ]
     important_tokens: List[str] = []
@@ -266,9 +266,9 @@ def augment_and_return(
 ) -> list[Sample]:
     samples: list[Sample] = []
     (
-        importances_matrix,
+        _importances_matrix,
         important_tokens,
-        tokens_and_activations,
+        _tokens_and_activations,
     ) = measure_importance(
         feature_activation,
         tokenizer,
@@ -300,6 +300,9 @@ def augment_and_return(
             scale_factor=scale_factor,
             config=importance_config,
         )
+        for str_token, _ in tokens_and_activations:
+            # Asserts that the str_token maps to a single token
+            tokenizer.str_to_id(str_token)
         samples.append(Sample(importances_matrix, tokens_and_activations))
 
     return samples

@@ -5,6 +5,7 @@ import typing
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
+import numpy as np
 import torch
 from jaxtyping import Float, Int
 from sklearn.model_selection import train_test_split  # type: ignore
@@ -109,9 +110,19 @@ def run_layer(
     word_to_casings: WordToCasings,
     device: device,
     train_config: TrainConfig,
-) -> Tuple[list[NeuronModel | None], list[NeuronStats | None]]:
+) -> Tuple[
+    list[NeuronModel | None],
+    list[NeuronStats | None],
+    Float[np.ndarray, "num_features num_samples*sample_length"],
+    Float[np.ndarray, "num_features num_samples*sample_length"],
+]:
+    assert len(feature_indices) > 0
+
     feature_models: list[NeuronModel | None] = []
     feature_stats: list[NeuronStats | None] = []
+
+    activations: Float[np.ndarray, "num_features num_samples*sample_length"] | None = None
+    pred_activations: Float[np.ndarray, "num_features num_samples*sample_length"] | None = None
 
     augmenter = default_augmenter(word_to_casings, device)
 
@@ -124,7 +135,7 @@ def run_layer(
         )
 
         try:
-            neuron_model, stats = train_and_eval.train_and_eval(
+            neuron_model, stats, feature_activations, feature_pred_activations = train_and_eval.train_and_eval(
                 feature_activation(feature_index),
                 tokenizer,
                 augmenter,
@@ -143,10 +154,24 @@ def run_layer(
             neuron_model = None
             stats = None
 
+        assert len(feature_activations.shape) == 1
+        assert feature_activations.shape == feature_pred_activations.shape
+
+        if activations is None:
+            activations = np.full((max(feature_indices) + 1, feature_activations.shape[0]), float("nan"))
+            pred_activations = np.full((max(feature_indices) + 1, feature_activations.shape[0]), float("nan"))
+
+        assert pred_activations is not None
+
+        activations[feature_index, :] = feature_activations
+        pred_activations[feature_index, :] = feature_pred_activations
+
         feature_models.append(neuron_model)
         feature_stats.append(stats)
 
-    return feature_models, feature_stats
+    assert activations is not None
+    assert pred_activations is not None
+    return feature_models, feature_stats, activations, pred_activations
 
 
 def run_training(
@@ -181,7 +206,7 @@ def run_training(
 
             layer_id = layer_index_to_name(layer_index, layer_ending)
 
-            neuron_model, stats = train_and_eval.train_and_eval(
+            neuron_model, stats, _, _ = train_and_eval.train_and_eval(
                 feature_activation(model, layer_id, neuron_index),
                 tokenizer,
                 augmenter,
