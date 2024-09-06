@@ -8,3 +8,4 @@ transformers ~= 4.44.2
 graphviz ~= 0.20.3
 pydantic ~= 2.8.2
 datasets ~= 2.21.0
+wandb ~= 0.17.8

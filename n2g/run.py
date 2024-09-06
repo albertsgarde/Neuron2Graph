@@ -7,6 +7,7 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import torch
+import wandb
 from jaxtyping import Float, Int
 from sklearn.model_selection import train_test_split  # type: ignore
 from torch import Tensor, device
@@ -126,6 +127,9 @@ def run_layer(
 
     augmenter = default_augmenter(word_to_casings, device)
 
+    num_succesful = 0
+    total_firing_f1_score = 0.0
+
     for feature_index in feature_indices:
         print(f"{feature_index=}", flush=True)
         train_samples, base_max_activation = feature_samples(feature_index)
@@ -168,6 +172,19 @@ def run_layer(
 
         feature_models.append(neuron_model)
         feature_stats.append(stats)
+
+        assert len(feature_models) == len(feature_stats)
+        num_features_processed = len(feature_models)
+        num_succesful += 1 if neuron_model is not None else 0
+        total_firing_f1_score += stats.firing.f1_score if stats is not None else 0
+
+        log_dict = {
+            "features_processed": num_features_processed,
+            "succesful": num_succesful / num_features_processed,
+            "firing_f1_score": total_firing_f1_score / num_features_processed,
+        }
+
+        wandb.log(log_dict)
 
     assert activations is not None
     assert pred_activations is not None
