@@ -111,6 +111,7 @@ def run_layer(
     word_to_casings: WordToCasings,
     device: device,
     train_config: TrainConfig,
+    log_wandb: bool = False,
 ) -> Tuple[
     list[NeuronModel | None],
     list[NeuronStats | None],
@@ -178,13 +179,14 @@ def run_layer(
         num_succesful += 1 if neuron_model is not None else 0
         total_firing_f1_score += stats.firing.f1_score if stats is not None else 0
 
-        log_dict = {
-            "features_processed": num_features_processed,
-            "succesful": num_succesful / num_features_processed,
-            "firing_f1_score": total_firing_f1_score / num_features_processed,
-        }
+        if log_wandb:
+            log_dict = {
+                "features_processed": num_features_processed,
+                "succesful": num_succesful / num_features_processed,
+                "firing_f1_score": total_firing_f1_score / num_features_processed,
+            }
 
-        wandb.log(log_dict)
+            wandb.log(log_dict)
 
     assert activations is not None
     assert pred_activations is not None
