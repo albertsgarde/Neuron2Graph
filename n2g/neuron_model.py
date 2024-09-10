@@ -22,7 +22,9 @@ class Sample:
     importances: Float[np.ndarray, "prompt_length prompt_length"]
     tokens_and_activations: list[tuple[str, float]]
 
-    def tuple(self) -> tuple[Float[np.ndarray, "prompt_length prompt_length"], list[tuple[str, float]]]:
+    def tuple(
+        self,
+    ) -> tuple[Float[np.ndarray, "prompt_length prompt_length"], list[tuple[str, float]]]:
         return self.importances, self.tokens_and_activations
 
 
@@ -75,11 +77,14 @@ class NeuronNode:
 def important_index_sets(
     sample: Sample,
     importance_threshold: float,
+    ignore_end_of_text: bool,
 ) -> list[set[int]]:
     importances_matrix, tokens_and_activations = sample.tuple()
     result: list[set[int]] = []
 
-    end_of_text_indices = np.array([token == "<|endoftext|>" for token, _ in tokens_and_activations])
+    end_of_text_indices = np.array(
+        [ignore_end_of_text and token == "<|endoftext|>" for token, _ in tokens_and_activations]
+    )
     important_indices = np.tril((importances_matrix > importance_threshold).T & ~end_of_text_indices)
 
     result = [set(np.where(row)[0]) for row in important_indices]
@@ -95,6 +100,7 @@ def make_lines(
     important_index_sets: list[set[int]],
     importance_threshold: float,
     activation_threshold: float,
+    ignore_end_of_text: bool,
 ) -> list[Line]:
     """
     Creates a list of patterns to be added to the neuron model.
@@ -117,7 +123,7 @@ def make_lines(
         important_indices = important_index_sets[i] if i < len(important_index_sets) else important_index_sets[-1]
 
         for j, (seq_token, seq_activation) in enumerate(reversed(before)):
-            if seq_token == "<|endoftext|>":
+            if ignore_end_of_text and seq_token == "<|endoftext|>":
                 continue
 
             seq_index = len(before) - j - 1
@@ -169,17 +175,21 @@ def samples_to_lines(
     samples: list[list[Sample]],
     importance_threshold: float,
     activation_threshold: float,
+    ignore_end_of_text: bool,
 ) -> list[Line]:
     lines = []
     for sample_set in samples:
         original_sample = sample_set[0]
-        original_sample_important_index_sets = important_index_sets(original_sample, importance_threshold)
+        original_sample_important_index_sets = important_index_sets(
+            original_sample, importance_threshold, ignore_end_of_text
+        )
         for sample in sample_set:
             lines += make_lines(
                 sample,
                 original_sample_important_index_sets,
                 importance_threshold,
                 activation_threshold,
+                ignore_end_of_text,
             )
     return lines
 
@@ -332,8 +342,9 @@ class NeuronModel:
     def fit(
         self,
         samples: list[list[Sample]],
+        ignore_end_of_text: bool,
     ):
-        lines = samples_to_lines(samples, self.importance_threshold, self.activation_threshold)
+        lines = samples_to_lines(samples, self.importance_threshold, self.activation_threshold, ignore_end_of_text)
 
         for line in lines:
             self._add(self.root, line, graph=True)

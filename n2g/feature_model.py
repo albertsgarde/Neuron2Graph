@@ -43,9 +43,13 @@ def _model_from_lines(tokenizer: Tokenizer, lines: list[Line]) -> RustFeatureMod
 
 
 def _model_from_samples(
-    tokenizer: Tokenizer, samples: list[list[Sample]], importance_threshold: float, activation_threshold: float
+    tokenizer: Tokenizer,
+    samples: list[list[Sample]],
+    importance_threshold: float,
+    activation_threshold: float,
+    ignore_end_of_text: bool,
 ) -> RustFeatureModel:
-    lines = neuron_model.samples_to_lines(samples, importance_threshold, activation_threshold)
+    lines = neuron_model.samples_to_lines(samples, importance_threshold, activation_threshold, ignore_end_of_text)
     return _model_from_lines(tokenizer, lines)
 
 
@@ -83,10 +87,15 @@ class FeatureModel:
 
     @staticmethod
     def from_samples(
-        tokenizer: Tokenizer, samples: list[list[Sample]], importance_threshold: float, activation_threshold: float
+        tokenizer: Tokenizer,
+        samples: list[list[Sample]],
+        importance_threshold: float,
+        activation_threshold: float,
+        ignore_end_of_text: bool,
     ) -> "FeatureModel":
         return FeatureModel(
-            _model_from_samples(tokenizer, samples, importance_threshold, activation_threshold), tokenizer
+            _model_from_samples(tokenizer, samples, importance_threshold, activation_threshold, ignore_end_of_text),
+            tokenizer,
         )
 
     @staticmethod

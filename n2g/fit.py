@@ -185,6 +185,7 @@ class ImportanceConfig:
     masking_token: int = 1
     threshold: float = 0.8
     prepend_bos: bool = True
+    ignore_end_of_text: bool = True
 
 
 def measure_importance(
@@ -242,7 +243,7 @@ def measure_importance(
     important_tokens = [
         str_token
         for str_token, importance in tokens_and_importances
-        if importance >= config.threshold and str_token != "<|endoftext|>"
+        if importance >= config.threshold and (str_token != "<|endoftext|>" or not config.ignore_end_of_text)
     ]
 
     return (
@@ -352,6 +353,6 @@ def fit_neuron_model(
         config.activation_threshold,
         config.importance_threshold,
     )
-    neuron_model.fit(all_samples)
+    neuron_model.fit(all_samples, config.importance_config.ignore_end_of_text)
 
     return neuron_model
