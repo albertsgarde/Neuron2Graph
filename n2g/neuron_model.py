@@ -10,9 +10,9 @@ from pydantic import BaseModel, ConfigDict, NonNegativeInt
 
 from .neuron_store import NeuronStore
 
-ROOT_TOKEN = "**ROOT**"
-IGNORE_TOKEN = "**IGNORE**"
-END_TOKEN = "**END**"
+ROOT_TOKEN: str = "**ROOT**"
+IGNORE_TOKEN: str = "**IGNORE**"
+END_TOKEN: str = "**END**"
 
 SPECIAL_TOKENS = {ROOT_TOKEN, IGNORE_TOKEN, END_TOKEN}
 
